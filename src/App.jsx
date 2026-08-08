@@ -99,9 +99,20 @@ function AppContent() {
   const [loadingEmployees, setLoadingEmployees] = useState(true)
   const [equipmentList, setEquipmentList] = useState([])
 
-  // Determine if user is an admin or executive manager
-  const userEmail = user?.email?.toLowerCase() || ''
-  const isAdmin = userEmail.includes('admin') || userEmail.includes('ewomazino') || userEmail.includes('management') || userEmail.includes('hr')
+ const userEmail = user?.email?.toLowerCase() || ''
+  
+  // List of hardcoded admin emails
+  const adminEmails = [
+    'ewomazino.edhor@mowatek.com',
+    'enite.wekpe@mowatek.com',
+    'martha.obasi@mowatek.com'
+  ]
+
+  const isAdmin = 
+    adminEmails.includes(userEmail) || 
+    userEmail.includes('admin') || 
+    userEmail.includes('management') || 
+    userEmail.includes('hr')
 
   // Fetch and map employees from Supabase on load
   useEffect(() => {
