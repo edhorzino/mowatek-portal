@@ -87,7 +87,7 @@ export function AuthProvider({ children }) {
     return data
   }
 
-  // Login handler connected directly to Supabase with Admin Approval Gate
+  // Login handler connected directly to Supabase with Admin Approval Gate & Live Session Tracking
   const login = async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -107,6 +107,16 @@ export function AuthProvider({ children }) {
         setProfile(null)
         throw new Error('Your account is pending admin approval. Please contact the administrator.')
       }
+
+      // Record active login session for real-time dashboard metrics
+      await supabase.from('user_sessions').insert([
+        {
+          user_id: data.user.id,
+          email: email,
+          full_name: userProfile.full_name || email,
+          department: userProfile.department || 'General'
+        }
+      ])
     }
 
     return data

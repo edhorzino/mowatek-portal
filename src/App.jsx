@@ -6,442 +6,88 @@ import { EmployeesPage } from './components/EmployeesPage'
 import { EquipmentPage } from './components/EquipmentPage'
 import { MaintenancePage } from './components/MaintenancePage'
 import { DocumentsPage } from './components/DocumentsPage'
-import { supabase } from './lib/supabase' // Ensure your supabase client is imported
+import { supabase } from './lib/supabase'
 import "./App.css";
 
-function LoginScreen() {
-  const { login } = useAuth()
-
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  async function handleSubmit(event) {
-    event.preventDefault()
-    setError('')
-    setLoading(true)
-
-    try {
-      await login(email, password)
-    } catch (err) {
-      console.error(err)
-      setError(err.message || 'Unable to sign in.')
-    } finally {
-      setLoading(false)
-    }
+// Helper component for Individual Employee Profile View (Step 4)
+function EmployeeProfilePage({ user, employees }) {
+  // Find current user's employee record if matched by email
+  const currentEmployeeRecord = employees.find(
+    (emp) => emp.workEmail?.toLowerCase() === user?.email?.toLowerCase()
+  ) || {
+    firstName: user?.email?.split('@')[0] || 'Employee',
+    lastName: '',
+    workEmail: user?.email || 'name@mowatek.com',
+    department: 'General Operations',
+    jobTitle: 'Staff Member',
+    phoneNumber: '—',
+    status: 'Active',
+    employmentDate: '—',
+    employeeId: 'MWK-SELF'
   }
 
   return (
-    <div className="login-page">
-      <div className="login-card">
-        <div className="login-brand">
-          <div className="brand-mark">M</div>
-          <div>
-            <h1>Mowatek</h1>
-            <p>Employee Portal</p>
-          </div>
-        </div>
-
-        <div className="login-heading">
-          <h2>Welcome back</h2>
-          <p>Sign in to access the Mowatek employee portal.</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="login-form">
-          <label>
-            Work Email
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="name@mowatek.com"
-              required
-            />
-          </label>
-
-          <label>
-            Password
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="Enter your password"
-              required
-            />
-          </label>
-
-          {error && <div className="error-box">{error}</div>}
-
-          <button type="submit" disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign in'}
-          </button>
-        </form>
-      </div>
-    </div>
-  )
-}
-
-const NAV_ITEMS = [
-  {
-    section: 'MAIN',
-    items: [
-      { id: 'dashboard', icon: '▦', label: 'Dashboard' },
-      { id: 'employees', icon: '👥', label: 'Employees' },
-      { id: 'equipment', icon: '⚙', label: 'Equipment' },
-      { id: 'maintenance', icon: '🔧', label: 'Maintenance' },
-      { id: 'supplies', icon: '▤', label: 'Supplies' },
-      { id: 'documents', icon: '▣', label: 'Documents' },
-    ],
-  },
-  {
-    section: 'MANAGEMENT',
-    items: [
-      { id: 'projects', icon: '◉', label: 'Projects' },
-      { id: 'reports', icon: '▥', label: 'Reports' },
-    ],
-  },
-]
-
-function PageHeader({ eyebrow, title, description, action }) {
-  return (
-    <div className="page-heading">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '800px' }}>
       <div>
-        {eyebrow && <span className="page-eyebrow">{eyebrow}</span>}
-        <h1>{title}</h1>
-        {description && <p>{description}</p>}
+        <span className="page-eyebrow">EMPLOYEE SELF-SERVICE</span>
+        <h1 style={{ fontSize: '28px', fontWeight: 800, margin: '4px 0 8px 0', color: '#fff' }}>
+          My Profile
+        </h1>
+        <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: 0 }}>
+          View your personal personnel record registered in the Mowatek directory.
+        </p>
       </div>
 
-      {action && <div className="page-heading-action">{action}</div>}
-    </div>
-  )
-}
-
-function EmptyModule({ icon, title, description }) {
-  return (
-    <section className="module-empty">
-      <div className="module-empty-icon">{icon}</div>
-      <h2>{title}</h2>
-      <p>{description}</p>
-      <span className="coming-soon">MODULE READY FOR DATABASE CONNECTION</span>
-    </section>
-  )
-}
-
-
-
-
-
-function calculateNextDate(startDateStr, frequency) {
-  const date = new Date(startDateStr || new Date());
-  const freq = (frequency || '').toLowerCase();
-  if (freq === 'weekly') date.setDate(date.getDate() + 7);
-  else if (freq === 'bi-weekly') date.setDate(date.getDate() + 14);
-  else if (freq === 'monthly') date.setMonth(date.getMonth() + 1);
-  else if (freq === 'quarterly') date.setMonth(date.getMonth() + 3);
-  else if (freq === 'semi-annually') date.setMonth(date.getMonth() + 6);
-  else if (freq === 'annually') date.setFullYear(date.getFullYear() + 1);
-  else date.setDate(date.getDate() + 30);
-  return date.toISOString().split('T')[0];
-}
-
-const INITIAL_EQUIPMENT = [
-  { id: 'EQ-001', name: 'High-Pressure Water Pump', category: 'Pumps', status: 'Operational', lastMaintenance: '2026-07-01', frequency: 'Bi-Weekly', nextMaintenance: '2026-07-15' },
-  { id: 'EQ-002', name: 'Diesel Generator 500kVA', category: 'Power', status: 'Operational', lastMaintenance: '2026-06-20', frequency: 'Monthly', nextMaintenance: '2026-07-20' },
-  { id: 'EQ-003', name: 'Industrial Water Filter Unit', category: 'Filtration', status: 'Under Maintenance', lastMaintenance: '2026-05-10', frequency: 'Bi-Weekly', nextMaintenance: '2026-05-24' }
-];
-
-
-
-
-
-function SuppliesPage() {
-  return (
-    <>
-      <PageHeader
-        eyebrow="INVENTORY MANAGEMENT"
-        title="Supplies"
-        description="Monitor stock, inventory levels and material availability."
-      />
-
-      <div className="module-grid">
-        <div className="mini-stat"><span>Total Items</span><strong>—</strong></div>
-        <div className="mini-stat"><span>In Stock</span><strong>—</strong></div>
-        <div className="mini-stat"><span>Low Stock</span><strong>—</strong></div>
-        <div className="mini-stat"><span>Out of Stock</span><strong>—</strong></div>
-      </div>
-
-      <EmptyModule
-        icon="▤"
-        title="Inventory Register"
-        description="The supplies and inventory interface is ready for connection to the inventory database."
-      />
-    </>
-  )
-}
-
-
-
-function ProjectsPage() {
-  return (
-    <>
-      <PageHeader
-        eyebrow="PROJECT MANAGEMENT"
-        title="Projects"
-        description="Monitor projects, assignments, progress and project documentation."
-      />
-
-      <div className="module-grid">
-        <div className="mini-stat"><span>Active Projects</span><strong>—</strong></div>
-        <div className="mini-stat"><span>In Progress</span><strong>—</strong></div>
-        <div className="mini-stat"><span>Completed</span><strong>—</strong></div>
-        <div className="mini-stat"><span>On Hold</span><strong>—</strong></div>
-      </div>
-
-      <EmptyModule
-        icon="◉"
-        title="Project Register"
-        description="Project information and project-level reporting will be connected here."
-      />
-    </>
-  )
-}
-
-function ReportsPage() {
-  return (
-    <>
-      <PageHeader
-        eyebrow="BUSINESS INTELLIGENCE"
-        title="Reports"
-        description="Generate management reports from the Mowatek database."
-      />
-
-      <div className="report-grid">
-        <div className="report-card">
-          <span>01</span>
-          <h3>Employee Report</h3>
-          <p>Employee records, departments and positions.</p>
-          <button disabled>Generate Report</button>
-        </div>
-
-        <div className="report-card">
-          <span>02</span>
-          <h3>Equipment Report</h3>
-          <p>Equipment register and operational status.</p>
-          <button disabled>Generate Report</button>
-        </div>
-
-        <div className="report-card">
-          <span>03</span>
-          <h3>Maintenance Report</h3>
-          <p>Maintenance schedules and service history.</p>
-          <button disabled>Generate Report</button>
-        </div>
-
-        <div className="report-card">
-          <span>04</span>
-          <h3>Document Report</h3>
-          <p>Document register, revisions and status.</p>
-          <button disabled>Generate Report</button>
-        </div>
-      </div>
-    </>
-  )
-}
-
-function Dashboard() {
-  const { user, attributes, groups, logout } = useAuth()
-
-  const [activePage, setActivePage] = useState('dashboard')
-  const [employees, setEmployees] = useState([])
-  const [loadingEmployees, setLoadingEmployees] = useState(true)
-  const [employeeError, setEmployeeError] = useState('')
-
-  // --- PERSISTENT HANDLERS CONNECTED TO API ---
-
-// 1. Add Employee
-  const handleAddEmployee = async (newEmp) => {
-    try {
-      const savedEmployee = await createEmployee(newEmp)
-      setEmployees((prev) => [savedEmployee || newEmp, ...prev])
-    } catch (err) {
-      console.warn('Backend create skipped or failed, saving locally:', err)
-      setEmployees((prev) => [newEmp, ...prev])
-    }
-  }
-
-  // 2. Update Employee
-  const handleUpdateEmployee = async (targetId, updatedRecord) => {
-    try {
-      await updateEmployeeApi(targetId, updatedRecord)
-    } catch (err) {
-      console.warn('Backend update skipped or failed, updating UI locally:', err)
-    } finally {
-      // Always update UI state
-      setEmployees((prev) =>
-        prev.map((emp) =>
-          (emp.employeeId || emp.id) === targetId ? { ...emp, ...updatedRecord } : emp
-        )
-      )
-    }
-  }
-
-  // 3. Delete Employee
-  const handleDeleteEmployee = async (targetId) => {
-    try {
-      await deleteEmployeeApi(targetId)
-    } catch (err) {
-      console.warn('Backend delete skipped or failed, removing from UI locally:', err)
-    } finally {
-      // Always update UI state
-      setEmployees((prev) =>
-        prev.filter((emp) => (emp.employeeId || emp.id) !== targetId)
-      )
-    }
-  }
-
-  useEffect(() => {
-    async function loadEmployees() {
-      try {
-        const data = await getEmployees()
-
-        const list = Array.isArray(data)
-          ? data
-          : data?.employees || data?.items || []
-
-        setEmployees(list)
-      } catch (err) {
-        console.error(err)
-        setEmployeeError(err.message || 'Unable to load employees.')
-      } finally {
-        setLoadingEmployees(false)
-      }
-    }
-
-    loadEmployees()
-  }, [])
-
-  const displayName =
-    attributes?.name ||
-    attributes?.email ||
-    user?.username ||
-    'Employee'
-
-  function renderPage() {
-    if (employeeError && activePage === 'dashboard') {
-      return (
-        <>
-          <PageHeader
-            eyebrow="MOWATEK INTERNAL SYSTEM"
-            title="Dashboard"
-            description={`Welcome back, ${displayName}.`}
-          />
-          <div className="error-box">{employeeError}</div>
-        </>
-      )
-    }
-
-    switch (activePage) {
-      case 'employees':
-    return (
-    <EmployeesPage
-      employees={employees}
-      loadingEmployees={loadingEmployees}
-      onAddEmployee={handleAddEmployee}
-      onUpdateEmployee={handleUpdateEmployee}
-      onDeleteEmployee={handleDeleteEmployee}
-    />
-  )
-
-      case 'equipment':
-        return <EquipmentPage />
-
-      case 'maintenance':
-        return <MaintenancePage />
-
-      case 'supplies':
-        return <SuppliesPage />
-
-      case 'documents':
-        return <DocumentsPage />
-
-      case 'projects':
-        return <ProjectsPage />
-
-      case 'reports':
-        return <ReportsPage />
-
-      case 'dashboard':
-      default:
-        return (
-          <DashboardHome
-            displayName={displayName}
-            employees={employees}
-            loadingEmployees={loadingEmployees}
-          />
-        )
-    }
-  }
-
-  return (
-    <div className="portal">
-      <header className="topbar">
-        <div className="brand">
-          <div className="brand-mark">M</div>
-
+      <div className="content-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '20px' }}>
+          <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: 800, color: '#0f172a' }}>
+            {currentEmployeeRecord.firstName?.[0]}{currentEmployeeRecord.lastName?.[0] || ''}
+          </div>
           <div>
-            <strong>MOWATEK</strong>
-            <span>Employee Portal</span>
+            <h2 style={{ margin: '0 0 4px 0', color: '#fff', fontSize: '20px' }}>
+              {currentEmployeeRecord.firstName} {currentEmployeeRecord.middleName || ''} {currentEmployeeRecord.lastName}
+            </h2>
+            <p style={{ margin: 0, color: 'var(--accent-cyan)', fontSize: '13px', fontWeight: 600 }}>
+              {currentEmployeeRecord.jobTitle} • {currentEmployeeRecord.department}
+            </p>
           </div>
         </div>
 
-        <div className="user-area">
-          <div className="user-info">
-            <strong>{displayName}</strong>
-            <span>{groups?.join(', ') || 'Employee'}</span>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '14px', borderRadius: '8px' }}>
+            <span style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>Employee ID</span>
+            <strong style={{ color: '#fff', fontSize: '14px' }}>{currentEmployeeRecord.employeeId}</strong>
           </div>
 
-          <button className="logout-button" onClick={logout}>
-            Sign out
-          </button>
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '14px', borderRadius: '8px' }}>
+            <span style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>Work Email</span>
+            <strong style={{ color: '#fff', fontSize: '14px' }}>{currentEmployeeRecord.workEmail}</strong>
+          </div>
+
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '14px', borderRadius: '8px' }}>
+            <span style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>Phone Number</span>
+            <strong style={{ color: '#fff', fontSize: '14px' }}>{currentEmployeeRecord.phoneNumber}</strong>
+          </div>
+
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '14px', borderRadius: '8px' }}>
+            <span style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>Employment Status</span>
+            <span style={{ color: '#10b981', fontWeight: 600, fontSize: '13px' }}>● {currentEmployeeRecord.status}</span>
+          </div>
+
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '14px', borderRadius: '8px' }}>
+            <span style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>Employment Date</span>
+            <strong style={{ color: '#fff', fontSize: '14px' }}>{currentEmployeeRecord.employmentDate || 'Standard Entry'}</strong>
+          </div>
+
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '14px', borderRadius: '8px' }}>
+            <span style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>Compliance Policy</span>
+            <strong style={{ color: '#3b82f6', fontSize: '14px' }}>MWT-HR-2026</strong>
+          </div>
         </div>
-      </header>
-
-      <div className="portal-body">
-        <aside className="sidebar">
-          {NAV_ITEMS.map((section) => (
-            <div className="nav-section" key={section.section}>
-              <span className="nav-label">{section.section}</span>
-
-              {section.items.map((item) => (
-                <button
-                  key={item.id}
-                  className={`nav-item ${
-                    activePage === item.id ? 'active' : ''
-                  }`}
-                  onClick={() => setActivePage(item.id)}
-                >
-                  <span className="nav-icon">{item.icon}</span>
-                  <span className="nav-text">{item.label}</span>
-                </button>
-              ))}
-            </div>
-          ))}
-
-          <div className="sidebar-footer">
-            <span>MOWATEK INTERNAL</span>
-            <small>Portal v1.0</small>
-          </div>
-        </aside>
-
-        <main className="dashboard">
-          {renderPage()}
-        </main>
       </div>
     </div>
   )
 }
-
 
 function AppContent() {
   const { user, logout } = useAuth()
@@ -452,6 +98,10 @@ function AppContent() {
   const [employees, setEmployees] = useState([])
   const [loadingEmployees, setLoadingEmployees] = useState(true)
   const [equipmentList, setEquipmentList] = useState([])
+
+  // Determine if user is an admin or executive manager
+  const userEmail = user?.email?.toLowerCase() || ''
+  const isAdmin = userEmail.includes('admin') || userEmail.includes('ewomazino') || userEmail.includes('management') || userEmail.includes('hr')
 
   // Fetch and map employees from Supabase on load
   useEffect(() => {
@@ -466,7 +116,6 @@ function AppContent() {
 
         if (error) throw error
 
-        // Map database snake_case columns to frontend camelCase properties
         const formattedData = (data || []).map(emp => ({
           id: emp.id,
           employeeId: emp.employee_id,
@@ -492,14 +141,13 @@ function AppContent() {
     fetchEmployees()
   }, [user])
 
-  // If user is not authenticated, display the Login Page
   if (!user) {
     return <LoginPage />
   }
 
   const handleNavClick = (page) => {
     setActivePage(page)
-    setMobileOpen(false) // Auto close drawer on select
+    setMobileOpen(false)
   }
 
   // Database-connected Add Employee handler
@@ -606,6 +254,8 @@ function AppContent() {
     switch (activePage) {
       case 'dashboard':
         return <DashboardHome user={user} employees={employees} equipmentList={equipmentList} loadingEmployees={loadingEmployees} />
+      case 'profile':
+        return <EmployeeProfilePage user={user} employees={employees} />
       case 'employees':
         return (
           <EmployeesPage
@@ -644,13 +294,13 @@ function AppContent() {
         onClick={() => setMobileOpen(false)}
       />
 
-      {/* Sidebar Navigation */}
+      {/* Sidebar Navigation with Role Restrictions */}
       <aside className={`sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
         <div>
           <div className="brand-section">
             <div>
               <div className="brand-title">MOWATEK</div>
-              <div className="brand-subtitle">EMPLOYEE PORTAL V1.0</div>
+              <div className="brand-subtitle">{isAdmin ? 'ADMIN PORTAL V1.0' : 'EMPLOYEE PORTAL'}</div>
             </div>
             {mobileOpen && (
               <button className="hamburger-btn" onClick={() => setMobileOpen(false)}>
@@ -659,7 +309,7 @@ function AppContent() {
             )}
           </div>
 
-          <div className="nav-section-title">Main Navigation</div>
+          <div className="nav-section-title">Navigation</div>
           <nav className="nav-menu">
             <button
               className={`nav-item ${activePage === 'dashboard' ? 'active' : ''}`}
@@ -669,32 +319,45 @@ function AppContent() {
             </button>
 
             <button
-              className={`nav-item ${activePage === 'employees' ? 'active' : ''}`}
-              onClick={() => handleNavClick('employees')}
+              className={`nav-item ${activePage === 'profile' ? 'active' : ''}`}
+              onClick={() => handleNavClick('profile')}
             >
-              👥 Employees
+              🪪 My Profile
             </button>
 
-            <button
-              className={`nav-item ${activePage === 'equipment' ? 'active' : ''}`}
-              onClick={() => handleNavClick('equipment')}
-            >
-              ⚙️ Equipment
-            </button>
-            
-            <button
-              className={`nav-item ${activePage === 'documents' ? 'active' : ''}`}
-              onClick={() => handleNavClick('documents')}
-            >
-              📄 Documents
-            </button>
+            {/* Restricted Operational Links (Admin Only) */}
+            {isAdmin && (
+              <>
+                <div className="nav-section-title" style={{ marginTop: '16px' }}>Management</div>
+                <button
+                  className={`nav-item ${activePage === 'employees' ? 'active' : ''}`}
+                  onClick={() => handleNavClick('employees')}
+                >
+                  👥 Employees
+                </button>
 
-            <button
-              className={`nav-item ${activePage === 'maintenance' ? 'active' : ''}`}
-              onClick={() => handleNavClick('maintenance')}
-            >
-              🔧 Maintenance
-            </button>
+                <button
+                  className={`nav-item ${activePage === 'equipment' ? 'active' : ''}`}
+                  onClick={() => handleNavClick('equipment')}
+                >
+                  ⚙️ Equipment
+                </button>
+                
+                <button
+                  className={`nav-item ${activePage === 'documents' ? 'active' : ''}`}
+                  onClick={() => handleNavClick('documents')}
+                >
+                  📄 Documents
+                </button>
+
+                <button
+                  className={`nav-item ${activePage === 'maintenance' ? 'active' : ''}`}
+                  onClick={() => handleNavClick('maintenance')}
+                >
+                  🔧 Maintenance
+                </button>
+              </>
+            )}
           </nav>
         </div>
 
@@ -703,7 +366,7 @@ function AppContent() {
           <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff', wordBreak: 'break-all' }}>
             {user?.email || user?.username || 'User'}
           </div>
-          <div style={{ fontSize: '11px', color: '#94a3b8' }}>Employee</div>
+          <div style={{ fontSize: '11px', color: '#94a3b8' }}>{isAdmin ? 'Administrator' : 'Employee'}</div>
           <button className="btn-signout" onClick={logout}>
             Sign Out
           </button>

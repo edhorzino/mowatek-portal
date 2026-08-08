@@ -10,9 +10,12 @@ export function DashboardHome({ employees = [], equipmentList = [] }) {
   const totalEquipment = equipmentList.length || 14
   
   const [documents, setDocuments] = useState([])
+  const [activeSessions, setActiveSessions] = useState([])
+  const [loadingSessions, setLoadingSessions] = useState(true)
 
   useEffect(() => {
     fetchLiveDocuments()
+    fetchLiveSessions()
   }, [])
 
   const fetchLiveDocuments = async () => {
@@ -27,31 +30,58 @@ export function DashboardHome({ employees = [], equipmentList = [] }) {
     }
   }
 
+  const fetchLiveSessions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_sessions')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      setActiveSessions(data || [])
+    } catch (err) {
+      console.error('Error fetching live sessions:', err.message)
+    } finally {
+      setLoadingSessions(false)
+    }
+  }
+
   const totalDocs = documents.length
+  const totalActiveLogins = activeSessions.length
   const displayName = profileLoading ? '...' : (profile?.firstName || 'User')
   const displayEmail = profile?.email || 'ewomazino.edhor@mowatek.com'
 
   return (
     <>
-      {/* Responsive Injection Style to handle Mobile Stacking for Grids */}
+      {/* Responsive Injection Style to handle Mobile Stacking for Grids & Overflow */}
       <style>{`
         .dashboard-analytics-grid {
           display: grid;
           grid-template-columns: 2fr 1fr;
           gap: 20px;
         }
-        @media (max-width: 850px) {
+        @media (max-width: 900px) {
           .dashboard-analytics-grid {
             grid-template-columns: 1fr !important;
           }
         }
+        .metric-cards-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 16px;
+        }
+        @media (max-width: 480px) {
+          .metric-cards-grid {
+            grid-template-columns: 1fr;
+          }
+        }
       `}</style>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%', boxSizing: 'border-box' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%', boxSizing: 'border-box', maxWidth: '100%', overflowX: 'hidden' }}>
         {/* Header */}
         <div>
           <span className="page-eyebrow">MOWATEK INTERNAL SYSTEM</span>
-          <h1 style={{ fontSize: '28px', fontWeight: 800, margin: '4px 0 8px 0', color: '#fff' }}>
+          <h1 style={{ fontSize: '28px', fontWeight: 800, margin: '4px 0 8px 0', color: '#fff', wordBreak: 'break-word' }}>
             Dashboard
           </h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: 0, wordBreak: 'break-word' }}>
@@ -60,13 +90,7 @@ export function DashboardHome({ employees = [], equipmentList = [] }) {
         </div>
 
         {/* 4-Column Compact Metric Cards */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '16px',
-          }}
-        >
+        <div className="metric-cards-grid">
           {/* Employees Metric */}
           <div className="metric-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -127,55 +151,47 @@ export function DashboardHome({ employees = [], equipmentList = [] }) {
         {/* Analytics Grid (Responsive Class Applied) */}
         <div className="dashboard-analytics-grid">
           
-          {/* Left Column: Staff Logins & Department Breakdown */}
-          <div className="content-card" style={{ margin: 0 }}>
+          {/* Left Column: Live Staff Logins & Sessions */}
+          <div className="content-card" style={{ margin: 0, boxSizing: 'border-box', overflowX: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '8px' }}>
               <div>
-                <h3 style={{ fontSize: '16px', margin: 0, color: '#fff' }}>Today's Active Personnel Logins</h3>
+                <h3 style={{ fontSize: '16px', margin: 0, color: '#fff' }}>Active Personnel Logins</h3>
                 <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                  Department attendance & portal sessions
+                  Live portal session tracking via Supabase
                 </p>
               </div>
               <span style={{ fontSize: '12px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '4px 10px', borderRadius: '12px', fontWeight: 600 }}>
-                6 Logged In Today
+                {loadingSessions ? 'Loading...' : `${totalActiveLogins} Active Logins`}
               </span>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px' }}>
-                  <span style={{ color: '#fff' }}>Engineering (ENG)</span>
-                  <span style={{ color: 'var(--text-muted)' }}>4 / 5 Staff Online</span>
-                </div>
-                <div style={{ height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{ width: '80%', height: '100%', background: 'var(--accent-cyan)' }} />
-                </div>
+            {loadingSessions ? (
+              <div style={{ fontSize: '13px', color: 'var(--text-muted)', padding: '12px 0' }}>Fetching live sessions...</div>
+            ) : activeSessions.length === 0 ? (
+              <div style={{ fontSize: '13px', color: 'var(--text-muted)', padding: '12px 0' }}>No active login records found.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '240px', overflowY: 'auto' }}>
+                {activeSessions.map((session, index) => (
+                  <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', gap: '8px' }}>
+                    <div style={{ overflow: 'hidden' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                        {session.full_name || session.email}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        Dept: {session.department || 'General'}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '11px', color: '#10b981', background: 'rgba(16,185,129,0.1)', padding: '2px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
+                      ● Online
+                    </span>
+                  </div>
+                ))}
               </div>
-
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px' }}>
-                  <span style={{ color: '#fff' }}>Procurement (PRC)</span>
-                  <span style={{ color: 'var(--text-muted)' }}>2 / 2 Staff Online</span>
-                </div>
-                <div style={{ height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{ width: '100%', height: '100%', background: '#3b82f6' }} />
-                </div>
-              </div>
-
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px' }}>
-                  <span style={{ color: '#fff' }}>Operations (OPS)</span>
-                  <span style={{ color: 'var(--text-muted)' }}>1 / 3 Staff Online</span>
-                </div>
-                <div style={{ height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{ width: '33%', height: '100%', background: '#f59e0b' }} />
-                </div>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Right Column: Document Vault Metrics */}
-          <div className="content-card" style={{ margin: 0 }}>
+          <div className="content-card" style={{ margin: 0, boxSizing: 'border-box' }}>
             <h3 style={{ fontSize: '16px', margin: '0 0 4px 0', color: '#fff' }}>Document Analytics</h3>
             <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 20px 0' }}>Vault storage allocation</p>
 
@@ -200,26 +216,26 @@ export function DashboardHome({ employees = [], equipmentList = [] }) {
         </div>
 
         {/* Activity Log Stream */}
-        <div className="content-card" style={{ margin: 0 }}>
+        <div className="content-card" style={{ margin: 0, boxSizing: 'border-box' }}>
           <h3 style={{ fontSize: '16px', margin: '0 0 16px 0', color: '#fff' }}>Recent System Activity</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center', fontSize: '13px', paddingBottom: '10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <span style={{ padding: '6px', borderRadius: '6px', background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>📄</span>
-              <div style={{ flex: 1 }}>
-                <strong style={{ color: '#fff' }}>Controlled Document Registered</strong>
+              <span style={{ padding: '6px', borderRadius: '6px', background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', flexShrink: 0 }}>📄</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <strong style={{ color: '#fff', display: 'block', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>Controlled Document Registered</strong>
                 <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Vault record synced with Supabase storage</div>
               </div>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Just now</span>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', flexShrink: 0 }}>Just now</span>
             </div>
 
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center', fontSize: '13px' }}>
-              <span style={{ padding: '6px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>🔑</span>
-              <div style={{ flex: 1 }}>
-                <strong style={{ color: '#fff' }}>Admin Authentication Session</strong>
+              <span style={{ padding: '6px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', flexShrink: 0 }}>🔑</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <strong style={{ color: '#fff', display: 'block', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>Admin Authentication Session</strong>
                 <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>User logged in successfully</div>
               </div>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Today</span>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', flexShrink: 0 }}>Today</span>
             </div>
 
           </div>
