@@ -99,7 +99,7 @@ function AppContent() {
   const [loadingEmployees, setLoadingEmployees] = useState(true)
   const [equipmentList, setEquipmentList] = useState([])
 
- const userEmail = user?.email?.toLowerCase() || ''
+  const userEmail = user?.email?.toLowerCase() || ''
   
   // List of hardcoded admin emails
   const adminEmails = [
@@ -336,7 +336,31 @@ function AppContent() {
               🪪 My Profile
             </button>
 
-            {/* Restricted Operational Links (Admin Only) */}
+            {/* General Operational Links (Accessible to all Staff) */}
+            <div className="nav-section-title" style={{ marginTop: '16px' }}>Operations</div>
+            
+            <button
+              className={`nav-item ${activePage === 'equipment' ? 'active' : ''}`}
+              onClick={() => handleNavClick('equipment')}
+            >
+              ⚙️ Equipment
+            </button>
+            
+            <button
+              className={`nav-item ${activePage === 'documents' ? 'active' : ''}`}
+              onClick={() => handleNavClick('documents')}
+            >
+              📄 Documents
+            </button>
+
+            <button
+              className={`nav-item ${activePage === 'maintenance' ? 'active' : ''}`}
+              onClick={() => handleNavClick('maintenance')}
+            >
+              🔧 Maintenance
+            </button>
+
+            {/* Restricted Management Links (Admin Only) */}
             {isAdmin && (
               <>
                 <div className="nav-section-title" style={{ marginTop: '16px' }}>Management</div>
@@ -345,27 +369,6 @@ function AppContent() {
                   onClick={() => handleNavClick('employees')}
                 >
                   👥 Employees
-                </button>
-
-                <button
-                  className={`nav-item ${activePage === 'equipment' ? 'active' : ''}`}
-                  onClick={() => handleNavClick('equipment')}
-                >
-                  ⚙️ Equipment
-                </button>
-                
-                <button
-                  className={`nav-item ${activePage === 'documents' ? 'active' : ''}`}
-                  onClick={() => handleNavClick('documents')}
-                >
-                  📄 Documents
-                </button>
-
-                <button
-                  className={`nav-item ${activePage === 'maintenance' ? 'active' : ''}`}
-                  onClick={() => handleNavClick('maintenance')}
-                >
-                  🔧 Maintenance
                 </button>
               </>
             )}
