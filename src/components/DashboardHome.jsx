@@ -2,38 +2,36 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import { useEmployeeProfile } from '../hooks/useEmployeeProfile'
 
-export function DashboardHome({ employees = [], equipmentList = [] }) {
+export function DashboardHome({ employees = [] }) {
   const { profile, loading: profileLoading } = useEmployeeProfile()
   
-  // Calculate dynamic metrics
   const totalEmployees = employees.length || 8
-  
-  // 1. Total Equipment: Counts all assets currently in the equipment directory
-  const totalEquipment = equipmentList.length
 
-  // 2. Maintenance Due in 30 Days: Counts assets from the directory due within the next 30 days
-  const upcomingMaintenanceCount = equipmentList.filter(item => {
-    const dateStr = item.nextMaintenance || item.maintenanceDate || item.due_date || item.next_service_date || item.lastServiceDate
-    if (!dateStr) return false
-
-    const dueDate = new Date(dateStr)
-    if (isNaN(dueDate.getTime())) return false
-
-    const today = new Date()
-    const thirtyDaysFromNow = new Date()
-    thirtyDaysFromNow.setDate(today.getDate() + 30)
-
-    return dueDate >= today && dueDate <= thirtyDaysFromNow
-  }).length
-
+  // State for equipment and documents
+  const [equipmentList, setEquipmentList] = useState([])
   const [documents, setDocuments] = useState([])
   const [activeSessions, setActiveSessions] = useState([])
   const [loadingSessions, setLoadingSessions] = useState(true)
 
+  // Fetch live equipment and documents directly from Supabase on load
   useEffect(() => {
+    fetchLiveEquipment()
     fetchLiveDocuments()
     fetchLiveSessions()
   }, [])
+
+  const fetchLiveEquipment = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('equipment')
+        .select('*')
+
+      if (error) throw error
+      setEquipmentList(data || [])
+    } catch (err) {
+      console.error('Error fetching live equipment:', err.message)
+    }
+  }
 
   const fetchLiveDocuments = async () => {
     const { data, error } = await supabase
@@ -63,6 +61,37 @@ export function DashboardHome({ employees = [], equipmentList = [] }) {
     }
   }
 
+  // 1. Total Equipment: Counts all assets currently in the equipment directory
+  const totalEquipment = equipmentList.length
+
+  // 2. Dynamic Maintenance Due Soon Count based on Frequency Rules
+  const upcomingMaintenanceCount = equipmentList.filter(item => {
+    // Check various common date property names in your schema
+    const dateStr = item.nextMaintenance || item.maintenanceDate || item.due_date || item.next_service_date || item.lastServiceDate
+    if (!dateStr) return false
+
+    const dueDate = new Date(dateStr)
+    if (isNaN(dueDate.getTime())) return false
+
+    const today = new Date()
+    
+    // Determine threshold days based on maintenance frequency
+    const frequency = (item.frequency || item.maintenanceFrequency || '').toLowerCase()
+    let thresholdDays = 30 // Default for quarterly, 6 months, annual, etc.
+
+    if (frequency.includes('bi-weekly') || frequency.includes('biweekly') || frequency.includes('fortnight')) {
+      thresholdDays = 7
+    } else if (frequency.includes('monthly')) {
+      thresholdDays = 15
+    }
+
+    const thresholdDate = new Date()
+    thresholdDate.setDate(today.getDate() + thresholdDays)
+
+    // Check if due date is between today and the dynamic threshold
+    return dueDate >= today && dueDate <= thresholdDate
+  }).length
+
   const totalDocs = documents.length
   const totalActiveLogins = activeSessions.length
   const displayName = profileLoading ? '...' : (profile?.firstName || 'User')
@@ -70,7 +99,6 @@ export function DashboardHome({ employees = [], equipmentList = [] }) {
 
   return (
     <>
-      {/* Responsive Injection Style to handle Mobile Stacking for Grids & Overflow */}
       <style>{`
         .dashboard-analytics-grid {
           display: grid;
@@ -146,7 +174,7 @@ export function DashboardHome({ employees = [], equipmentList = [] }) {
               {upcomingMaintenanceCount}
             </div>
             <span style={{ fontSize: '12px', color: '#f59e0b', fontWeight: 500 }}>
-              ▲ Due in 30 Days
+              ▲ Due Soon (Smart Thresholds)
             </span>
           </div>
 
