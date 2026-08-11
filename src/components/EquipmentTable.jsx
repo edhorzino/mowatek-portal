@@ -6,7 +6,13 @@ export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete
   const [editingId, setEditingId] = useState(null)
   const [editFormData, setEditFormData] = useState({})
 
-  // Compute status based on Excel formula: IF(H2<TODAY(),"OVERDUE",IF(H2<=TODAY()+30,"DUE SOON","OK"))
+  // Modal State for Confirming Maintenance & File Uploads
+  const [confirmModalItem, setConfirmModalItem] = useState(null)
+  const [reportFile, setReportFile] = useState(null)
+  const [invoiceFile, setInvoiceFile] = useState(null)
+  const [uploading, setUploading] = useState(false)
+
+  // Compute status based on exact interval rules
   const calculateStatus = (nextDateStr) => {
     if (!nextDateStr) return 'OK'
     const today = new Date()
@@ -18,11 +24,10 @@ export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete
     const diffDays = Math.ceil((next - today) / (1000 * 60 * 60 * 24))
 
     if (diffDays < 0) return 'OVERDUE'
-    if (diffDays <= 30) return 'DUE SOON'
+    if (diffDays <= 7) return 'DUE SOON' // refined window
     return 'OK'
   }
 
-  // Calculate next maintenance date automatically based on frequency
   const calculateNextDate = (fromDate, frequency) => {
     const date = new Date(fromDate)
     const freq = frequency?.toUpperCase() || 'MONTHLY'
@@ -40,20 +45,61 @@ export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete
     } else if (freq === 'ANNUALLY' || freq === 'YEARLY') {
       date.setFullYear(date.getFullYear() + 1)
     } else {
-      date.setMonth(date.getMonth() + 1) // default fallback
+      date.setMonth(date.getMonth() + 1)
     }
 
     return date.toISOString().split('T')[0]
   }
 
-  const handleMaintenanceDone = (item) => {
-    const todayStr = new Date().toISOString().split('T')[0]
-    const nextStr = calculateNextDate(todayStr, item.maintenance_frequency || item.maintenanceFrequency)
-    
+  const handleOpenConfirmModal = (item) => {
+    setConfirmModalItem(item)
+    setReportFile(null)
+    setInvoiceFile(null)
+  }
+
+  const handleConfirmMaintenanceSubmit = async (e) => {
+    e.preventDefault()
+    if (!reportFile) {
+      alert('Maintenance Report document is mandatory to confirm maintenance completion.')
+      return
+    }
+
+    setUploading(true)
+    try {
+      const todayStr = new Date().toISOString().split('T')[0]
+      const nextStr = calculateNextDate(todayStr, confirmModalItem.maintenance_frequency || confirmModalItem.maintenanceFrequency)
+      
+      const hasInvoice = Boolean(invoiceFile)
+
+      if (onUpdate) {
+        await onUpdate(confirmModalItem.id, {
+          last_maintenance: todayStr,
+          next_maintenance: nextStr,
+          maintenance_report_url: reportFile.name, // Replace with Supabase storage bucket URL if uploading to bucket
+          invoice_url: hasInvoice ? invoiceFile.name : null,
+          invoice_status: hasInvoice ? 'UPLOADED' : 'PENDING',
+          invoice_cashed: false
+        })
+      }
+
+      setConfirmModalItem(null)
+      setReportFile(null)
+      setInvoiceFile(null)
+      alert('Maintenance successfully confirmed, logged, and report archived.')
+    } catch (err) {
+      console.error(err)
+      alert('Error updating maintenance record.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleToggleInvoiceCashed = (item) => {
+    const newCashedState = !item.invoice_cashed
     if (onUpdate) {
       onUpdate(item.id, {
-        last_maintenance: todayStr,
-        next_maintenance: nextStr
+        invoice_cashed: newCashedState,
+        invoice_status: newCashedState ? 'CASHED' : 'UPLOADED'
       })
     }
   }
@@ -73,6 +119,10 @@ export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete
       return matchesSearch && matchesStatus
     })
   }, [equipmentList, search, statusFilter])
+
+  const pendingInvoicesCount = useMemo(() => {
+    return equipmentList.filter(i => i.invoice_status === 'PENDING' || !i.invoice_status).length
+  }, [equipmentList])
 
   const handleStartEdit = (item) => {
     setEditingId(item.id)
@@ -99,6 +149,16 @@ export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete
 
   return (
     <>
+      {/* Reminder Notification Banner for Pending Invoices */}
+      {pendingInvoicesCount > 0 && (
+        <div style={{ background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.4)', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fde047', fontSize: '13px' }}>
+            <span>⚠️</span>
+            <span><strong>Administrative Notice:</strong> {pendingInvoicesCount} equipment asset(s) have pending invoice uploads.</span>
+          </div>
+        </div>
+      )}
+
       <div className="table-toolbar" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
         <input
           type="search"
@@ -120,6 +180,62 @@ export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete
         </span>
       </div>
 
+      {/* Confirmation Modal with File Uploads */}
+      {confirmModalItem && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.2)', padding: '24px', borderRadius: '12px', width: '450px', maxWidth: '90%' }}>
+            <h3 style={{ color: '#fff', margin: '0 0 10px 0' }}>Confirm Maintenance Completion</h3>
+            <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '16px' }}>
+              Are you sure you want to mark maintenance as completed for asset <strong>{confirmModalItem.asset_id}</strong> ({confirmModalItem.equipment})?
+            </p>
+
+            <form onSubmit={handleConfirmMaintenanceSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: '#38bdf8', marginBottom: '4px' }}>
+                  Maintenance Report Document (Required) *
+                </label>
+                <input 
+                  type="file" 
+                  accept=".pdf,.doc,.docx,.jpg,.png"
+                  onChange={(e) => setReportFile(e.target.files[0])}
+                  required
+                  style={{ width: '100%', fontSize: '12px', color: '#fff' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>
+                  Invoice Document (Optional - Marks Invoice Pending if omitted)
+                </label>
+                <input 
+                  type="file" 
+                  accept=".pdf,.doc,.docx,.jpg,.png"
+                  onChange={(e) => setInvoiceFile(e.target.files[0])}
+                  style={{ width: '100%', fontSize: '12px', color: '#fff' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '10px' }}>
+                <button 
+                  type="button" 
+                  onClick={() => setConfirmModalItem(null)}
+                  style={{ background: '#475569', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={uploading}
+                  style={{ background: '#059669', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
+                >
+                  {uploading ? 'Processing...' : 'Yes, Confirm Maintenance'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <div className="table-wrapper" style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
           <thead>
@@ -128,13 +244,10 @@ export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete
               <th style={{ padding: '12px' }}>Client</th>
               <th style={{ padding: '12px' }}>Site</th>
               <th style={{ padding: '12px' }}>Equipment</th>
-              <th style={{ padding: '12px' }}>Installed</th>
               <th style={{ padding: '12px' }}>Frequency</th>
-              <th style={{ padding: '12px' }}>Last Maint.</th>
               <th style={{ padding: '12px' }}>Next Maint.</th>
               <th style={{ padding: '12px' }}>Status</th>
-              <th style={{ padding: '12px' }}>Client Contact</th>
-              <th style={{ padding: '12px' }}>Site Engineer</th>
+              <th style={{ padding: '12px' }}>Invoice Status</th>
               <th style={{ padding: '12px' }}>Actions</th>
             </tr>
           </thead>
@@ -144,6 +257,7 @@ export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete
               const isEditing = editingId === item.id
               const nextMaintDate = item.next_maintenance || item.nextMaintenance
               const status = calculateStatus(nextMaintDate)
+              const invoiceStatus = item.invoice_status || 'PENDING'
 
               if (isEditing) {
                 return (
@@ -152,7 +266,6 @@ export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete
                     <td style={{ padding: '8px' }}><input value={editFormData.client} onChange={(e) => setEditFormData({ ...editFormData, client: e.target.value })} style={{ width: '110px', padding: '4px' }} /></td>
                     <td style={{ padding: '8px' }}><input value={editFormData.site} onChange={(e) => setEditFormData({ ...editFormData, site: e.target.value })} style={{ width: '90px', padding: '4px' }} /></td>
                     <td style={{ padding: '8px' }}><input value={editFormData.equipment} onChange={(e) => setEditFormData({ ...editFormData, equipment: e.target.value })} style={{ width: '90px', padding: '4px' }} /></td>
-                    <td style={{ padding: '8px' }}><input type="date" value={editFormData.installation_date} onChange={(e) => setEditFormData({ ...editFormData, installation_date: e.target.value })} style={{ width: '120px', padding: '4px' }} /></td>
                     <td style={{ padding: '8px' }}>
                       <select value={editFormData.maintenance_frequency} onChange={(e) => setEditFormData({ ...editFormData, maintenance_frequency: e.target.value })} style={{ padding: '4px' }}>
                         <option value="BIWEEKLY">BIWEEKLY</option>
@@ -163,12 +276,9 @@ export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete
                         <option value="ANNUALLY">ANNUALLY</option>
                       </select>
                     </td>
-                    <td style={{ padding: '8px' }}><input type="date" value={editFormData.last_maintenance} onChange={(e) => setEditFormData({ ...editFormData, last_maintenance: e.target.value })} style={{ width: '120px', padding: '4px' }} /></td>
                     <td style={{ padding: '8px' }}><input type="date" value={editFormData.next_maintenance} onChange={(e) => setEditFormData({ ...editFormData, next_maintenance: e.target.value })} style={{ width: '120px', padding: '4px' }} /></td>
                     <td style={{ padding: '8px' }}><strong>{status}</strong></td>
-                    <td style={{ padding: '8px' }}><input value={editFormData.client_contact} onChange={(e) => setEditFormData({ ...editFormData, client_contact: e.target.value })} style={{ width: '110px', padding: '4px' }} /></td>
-                    <td style={{ padding: '8px' }}><input value={editFormData.site_engineer} onChange={(e) => setEditFormData({ ...editFormData, site_engineer: e.target.value })} style={{ width: '110px', padding: '4px' }} /></td>
-                    <td style={{ padding: '8px' }}>
+                    <td style={{ padding: '8px' }} colSpan="2">
                       <button onClick={() => handleSaveEdit(item.id)} style={{ background: '#059669', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', marginRight: '4px' }}>Save</button>
                       <button onClick={() => setEditingId(null)} style={{ background: '#475569', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}>Cancel</button>
                     </td>
@@ -182,13 +292,11 @@ export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete
                   <td style={{ padding: '12px', color: '#fff' }}>{item.client}</td>
                   <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.site || '—'}</td>
                   <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.equipment || '—'}</td>
-                  <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.installation_date || '—'}</td>
                   <td style={{ padding: '12px' }}>
                     <span style={{ padding: '4px 8px', background: 'rgba(59,130,246,0.15)', color: '#60a5fa', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
                       {item.maintenance_frequency || 'MONTHLY'}
                     </span>
                   </td>
-                  <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.last_maintenance || '—'}</td>
                   <td style={{ padding: '12px', color: '#f59e0b', fontWeight: 600 }}>{item.next_maintenance || '—'}</td>
                   <td style={{ padding: '12px' }}>
                     <span style={{
@@ -202,14 +310,35 @@ export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete
                       {status}
                     </span>
                   </td>
-                  <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.client_contact || '—'}</td>
-                  <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.site_engineer || '—'}</td>
+                  <td style={{ padding: '12px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span style={{
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        fontSize: '10px',
+                        fontWeight: 'bold',
+                        width: 'fit-content',
+                        background: invoiceStatus === 'CASHED' ? '#064e3b' : invoiceStatus === 'UPLOADED' ? '#1e3a8a' : '#78350f',
+                        color: invoiceStatus === 'CASHED' ? '#6ee7b7' : invoiceStatus === 'UPLOADED' ? '#93c5fd' : '#fde047',
+                      }}>
+                        {invoiceStatus === 'CASHED' ? 'INVOICE CASHED' : invoiceStatus === 'UPLOADED' ? 'INVOICE UPLOADED' : 'INVOICE PENDING'}
+                      </span>
+                      
+                      {/* Admin Toggle for Cashed Status */}
+                      <button 
+                        onClick={() => handleToggleInvoiceCashed(item)}
+                        style={{ background: 'transparent', border: 'none', color: '#38bdf8', fontSize: '10px', cursor: 'pointer', textAlign: 'left', padding: 0, textDecoration: 'underline' }}
+                      >
+                        {item.invoice_cashed ? 'Mark Uncashed' : 'Mark Cashed (Admin)'}
+                      </button>
+                    </div>
+                  </td>
                   <td style={{ padding: '12px' }}>
                     <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                       <button 
-                        onClick={() => handleMaintenanceDone(item)} 
+                        onClick={() => handleOpenConfirmModal(item)} 
                         style={{ background: 'rgba(16, 185, 129, 0.2)', border: '1px solid rgba(16, 185, 129, 0.4)', color: '#34d399', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
-                        title="Mark maintenance done today and auto-advance next date"
+                        title="Mark maintenance done and attach verification report"
                       >
                         ✓ Maint. Done
                       </button>
