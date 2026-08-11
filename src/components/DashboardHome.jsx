@@ -7,8 +7,30 @@ export function DashboardHome({ employees = [], equipmentList = [] }) {
   
   // Calculate dynamic metrics
   const totalEmployees = employees.length || 8
-  const totalEquipment = equipmentList.length || 14
   
+  // 1. Equipment under maintenance count based on status field
+  const maintenanceEquipmentCount = equipmentList.filter(item => {
+    const status = (item.status || '').toLowerCase()
+    return status.includes('maintenance') || status.includes('repair')
+  }).length
+
+  // 2. Equipment due for maintenance within the next 30 days
+  const upcomingMaintenanceCount = equipmentList.filter(item => {
+    // Look for common date fields like nextMaintenance, maintenanceDate, or due_date
+    const dateStr = item.nextMaintenance || item.maintenanceDate || item.due_date || item.next_service_date
+    if (!dateStr) return false
+
+    const dueDate = new Date(dateStr)
+    if (isNaN(dueDate.getTime())) return false
+
+    const today = new Date()
+    const thirtyDaysFromNow = new Date()
+    thirtyDaysFromNow.setDate(today.getDate() + 30)
+
+    // Check if due date is between today and 30 days from now
+    return dueDate >= today && dueDate <= thirtyDaysFromNow
+  }).length
+
   const [documents, setDocuments] = useState([])
   const [activeSessions, setActiveSessions] = useState([])
   const [loadingSessions, setLoadingSessions] = useState(true)
@@ -112,10 +134,10 @@ export function DashboardHome({ employees = [], equipmentList = [] }) {
               <span style={{ fontSize: '18px' }}>⚙️</span>
             </div>
             <div style={{ fontSize: '32px', fontWeight: 800, color: '#fff', margin: '8px 0 4px 0' }}>
-              {totalEquipment}
+              {maintenanceEquipmentCount}
             </div>
             <span style={{ fontSize: '12px', color: 'var(--accent-cyan)', fontWeight: 500 }}>
-              ● Inventory Items
+              ● Under Maintenance
             </span>
           </div>
 
@@ -126,10 +148,10 @@ export function DashboardHome({ employees = [], equipmentList = [] }) {
               <span style={{ fontSize: '18px' }}>🔧</span>
             </div>
             <div style={{ fontSize: '32px', fontWeight: 800, color: '#fff', margin: '8px 0 4px 0' }}>
-              3
+              {upcomingMaintenanceCount}
             </div>
             <span style={{ fontSize: '12px', color: '#f59e0b', fontWeight: 500 }}>
-              ▲ Scheduled Tasks
+              ▲ Due in 30 Days
             </span>
           </div>
 
