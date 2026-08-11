@@ -1,137 +1,214 @@
-import { useState } from 'react'
-import { EmployeeTable } from './EmployeeTable'
-import { AddEmployeeModal } from './AddEmployeeModal'
+import { useState, useEffect } from 'react'
+import { supabase } from '../supabaseClient'
 
-// --- PageHeader Helper Component ---
-function PageHeader({ eyebrow, title, description, action }) {
+export function MaintenancePage() {
+  const [logs, setLogs] = useState([])
+  const [equipmentList, setEquipmentList] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showCompleteModal, setShowCompleteModal] = useState(false)
+
+  // Form state for logging a completed maintenance action
+  const [selectedAsset, setSelectedAsset] = useState('')
+  const [maintenanceNotes, setMaintenanceNotes] = useState('')
+  const [performedBy, setPerformedBy] = useState('')
+
+  useEffect(() => {
+    fetchMaintenanceLogs()
+    fetchEquipmentForDropdown()
+  }, [])
+
+  const fetchMaintenanceLogs = async () => {
+    setLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('maintenance_logs')
+        .select('*')
+        .order('completed_at', { ascending: false })
+
+      if (error) throw error
+      setLogs(data || [])
+    } catch (err) {
+      console.error('Error fetching maintenance logs:', err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchEquipmentForDropdown = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('equipment')
+        .select('*')
+      if (error) throw error
+      setEquipmentList(data || [])
+    } catch (err) {
+      console.error('Error fetching equipment list:', err.message)
+    }
+  }
+
+  const handleLogMaintenance = async (e) => {
+    e.preventDefault()
+    if (!selectedAsset) {
+      alert('Please select an equipment asset.')
+      return
+    }
+
+    const assetObj = equipmentList.find(eq => eq.id === selectedAsset || eq.asset_id === selectedAsset)
+    const assetName = assetObj ? (assetObj.equipmentName || assetObj.name || assetObj.asset_id) : 'Unknown Asset'
+    const clientName = assetObj ? (assetObj.clientName || assetObj.client || 'Internal') : 'General'
+
+    const newLog = {
+      equipment_id: assetObj?.asset_id || selectedAsset,
+      asset_name: assetName,
+      client_name: clientName,
+      notes: maintenanceNotes || 'Routine scheduled service completed.',
+      performed_by: performedBy || 'Technician',
+      completed_at: new Date().toISOString()
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('maintenance_logs')
+        .insert([newLog])
+        .select()
+
+      if (error) throw error
+
+      if (data && data.length > 0) {
+        setLogs([data[0], ...logs])
+      }
+      
+      // Reset form & close modal
+      setSelectedAsset('')
+      setMaintenanceNotes('')
+      setPerformedBy('')
+      setShowCompleteModal(false)
+      alert('Maintenance successfully logged and archived in history.')
+    } catch (err) {
+      console.error('Error saving maintenance log:', err.message)
+      alert('Failed to save log: ' + err.message)
+    }
+  }
+
   return (
-    <div className="page-heading">
-      <div>
-        {eyebrow && <span className="page-eyebrow">{eyebrow}</span>}
-        <h1>{title}</h1>
-        {description && <p>{description}</p>}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%' }}>
+      {/* Page Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <span className="page-eyebrow">OPERATIONAL AUDIT TRAIL</span>
+          <h1 style={{ fontSize: '28px', fontWeight: 800, margin: '4px 0 8px 0', color: '#fff' }}>
+            Maintenance Logs & History
+          </h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: 0 }}>
+            Track historical maintenance records, timestamps, client assets, and completed service actions.
+          </p>
+        </div>
+        <button className="btn-primary" onClick={() => setShowCompleteModal(true)}>
+          + Log Completed Maintenance
+        </button>
       </div>
-      {action && <div className="page-heading-action">{action}</div>}
+
+      {/* Modal for Logging Maintenance Done */}
+      {showCompleteModal && (
+        <div style={{ background: 'rgba(15, 23, 42, 0.95)', border: '1px solid rgba(255,255,255,0.1)', padding: '24px', borderRadius: '12px', marginBottom: '20px' }}>
+          <h3 style={{ margin: '0 0 16px 0', color: '#fff' }}>Record Completed Maintenance</h3>
+          <form onSubmit={handleLogMaintenance} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Select Equipment Asset *</label>
+              <select 
+                value={selectedAsset} 
+                onChange={(e) => setSelectedAsset(e.target.value)}
+                style={{ width: '100%', padding: '10px', background: '#020617', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', color: '#fff' }}
+                required
+              >
+                <option value="">-- Choose asset from registry --</option>
+                {equipmentList.map((eq) => (
+                  <option key={eq.id} value={eq.id}>
+                    {eq.asset_id || eq.id} — {eq.equipmentName || eq.name} ({eq.clientName || eq.client || 'No client'})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Technician / Performed By</label>
+              <input 
+                type="text" 
+                value={performedBy} 
+                onChange={(e) => setPerformedBy(e.target.value)} 
+                placeholder="e.g. John Doe"
+                style={{ width: '100%', padding: '10px', background: '#020617', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', color: '#fff' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Service Notes & Actions Performed</label>
+              <textarea 
+                value={maintenanceNotes} 
+                onChange={(e) => setMaintenanceNotes(e.target.value)} 
+                placeholder="Describe parts replaced, diagnostics run, or service details..."
+                rows="3"
+                style={{ width: '100%', padding: '10px', background: '#020617', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', color: '#fff' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button type="button" onClick={() => setShowCompleteModal(false)} style={{ padding: '8px 16px', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: '6px', cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button type="submit" className="btn-primary" style={{ padding: '8px 16px' }}>
+                Save to History Log
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* History Log Table Card */}
+      <div className="content-card" style={{ padding: 0, overflowX: 'auto' }}>
+        {loading ? (
+          <div style={{ padding: '24px', color: 'var(--text-muted)' }}>Loading maintenance history...</div>
+        ) : logs.length === 0 ? (
+          <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
+            No maintenance records logged yet. Click "+ Log Completed Maintenance" above to record your first asset service.
+          </div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.2)', color: 'var(--text-muted)' }}>
+                <th style={{ padding: '14px 16px' }}>Timestamp</th>
+                <th style={{ padding: '14px 16px' }}>Asset ID & Name</th>
+                <th style={{ padding: '14px 16px' }}>Client</th>
+                <th style={{ padding: '14px 16px' }}>Service Notes</th>
+                <th style={{ padding: '14px 16px' }}>Performed By</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.map((log) => (
+                <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                  <td style={{ padding: '14px 16px', color: '#38bdf8', whiteSpace: 'nowrap' }}>
+                    {new Date(log.completed_at).toLocaleString()}
+                  </td>
+                  <td style={{ padding: '14px 16px', color: '#fff', fontWeight: 600 }}>
+                    {log.equipment_id} <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>({log.asset_name})</span>
+                  </td>
+                  <td style={{ padding: '14px 16px', color: '#e2e8f0' }}>
+                    {log.client_name}
+                  </td>
+                  <td style={{ padding: '14px 16px', color: '#cbd5e1', maxWidth: '300px' }}>
+                    {log.notes}
+                  </td>
+                  <td style={{ padding: '14px 16px', color: '#10b981', fontWeight: 500 }}>
+                    {log.performed_by}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   )
 }
 
-export function EmployeesPage({
-  employees = [],
-  loading = false,
-  error = '',
-  onAddEmployee,
-  onUpdateEmployee,
-  onDeleteEmployee,
-}) {
-  const [showAddModal, setShowAddModal] = useState(false)
-
-  // Quick stats calculations
-  const totalEmployees = employees.length
-  const activeEmployees = employees.filter(
-    (emp) => (emp.status || 'Active').toLowerCase() === 'active'
-  ).length
-
-  return (
-    <>
-      <PageHeader
-        eyebrow="HUMAN RESOURCES"
-        title="Employee Directory"
-        description="Manage company personnel, departmental assignments, and contact profiles."
-        action={
-          <button
-            className="btn-primary"
-            onClick={() => setShowAddModal(!showAddModal)}
-          >
-            {showAddModal ? 'Cancel' : '+ Add Employee'}
-          </button>
-        }
-      />
-
-      {/* Error Banner */}
-      {error && (
-        <div
-          style={{
-            background: '#7f1d1d',
-            color: '#fca5a5',
-            padding: '12px 16px',
-            borderRadius: '8px',
-            marginBottom: '20px',
-            fontSize: '14px',
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      {/* Quick Summary Cards */}
-      <div
-        className="module-grid"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '16px',
-          marginBottom: '24px',
-        }}
-      >
-        <div
-          className="mini-stat"
-          style={{ padding: '16px', background: '#1e293b', borderRadius: '8px' }}
-        >
-          <span style={{ color: '#94a3b8', fontSize: '12px' }}>Total Staff</span>
-          <strong
-            style={{
-              display: 'block',
-              fontSize: '24px',
-              color: '#f8fafc',
-              marginTop: '4px',
-            }}
-          >
-            {totalEmployees}
-          </strong>
-        </div>
-
-        <div
-          className="mini-stat"
-          style={{ padding: '16px', background: '#1e293b', borderRadius: '8px' }}
-        >
-          <span style={{ color: '#94a3b8', fontSize: '12px' }}>Active Staff</span>
-          <strong
-            style={{
-              display: 'block',
-              fontSize: '24px',
-              color: '#4ade80',
-              marginTop: '4px',
-            }}
-          >
-            {activeEmployees}
-          </strong>
-        </div>
-      </div>
-
-      {/* Add Employee Form / Modal */}
-      {showAddModal && (
-        <AddEmployeeModal
-          onAdd={(newEmp) => {
-            if (onAddEmployee) onAddEmployee(newEmp)
-            setShowAddModal(false)
-          }}
-          onClose={() => setShowAddModal(false)}
-        />
-      )}
-
-      {/* Employee Table */}
-      <section className="content-card">
-        <EmployeeTable
-          employees={employees}
-          loading={loading}
-          onUpdate={onUpdateEmployee}
-          onDelete={onDeleteEmployee}
-        />
-      </section>
-    </>
-  )
-}
-
-// Default Export Fallback
-export default EmployeesPage
+export default MaintenancePage
