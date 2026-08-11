@@ -8,16 +8,12 @@ export function DashboardHome({ employees = [], equipmentList = [] }) {
   // Calculate dynamic metrics
   const totalEmployees = employees.length || 8
   
-  // 1. Equipment under maintenance count based on status field
-  const maintenanceEquipmentCount = equipmentList.filter(item => {
-    const status = (item.status || '').toLowerCase()
-    return status.includes('maintenance') || status.includes('repair')
-  }).length
+  // 1. Total Equipment: Counts all assets currently in the equipment directory
+  const totalEquipment = equipmentList.length
 
-  // 2. Equipment due for maintenance within the next 30 days
+  // 2. Maintenance Due in 30 Days: Counts assets from the directory due within the next 30 days
   const upcomingMaintenanceCount = equipmentList.filter(item => {
-    // Look for common date fields like nextMaintenance, maintenanceDate, or due_date
-    const dateStr = item.nextMaintenance || item.maintenanceDate || item.due_date || item.next_service_date
+    const dateStr = item.nextMaintenance || item.maintenanceDate || item.due_date || item.next_service_date || item.lastServiceDate
     if (!dateStr) return false
 
     const dueDate = new Date(dateStr)
@@ -27,7 +23,6 @@ export function DashboardHome({ employees = [], equipmentList = [] }) {
     const thirtyDaysFromNow = new Date()
     thirtyDaysFromNow.setDate(today.getDate() + 30)
 
-    // Check if due date is between today and 30 days from now
     return dueDate >= today && dueDate <= thirtyDaysFromNow
   }).length
 
@@ -134,10 +129,10 @@ export function DashboardHome({ employees = [], equipmentList = [] }) {
               <span style={{ fontSize: '18px' }}>⚙️</span>
             </div>
             <div style={{ fontSize: '32px', fontWeight: 800, color: '#fff', margin: '8px 0 4px 0' }}>
-              {maintenanceEquipmentCount}
+              {totalEquipment}
             </div>
             <span style={{ fontSize: '12px', color: 'var(--accent-cyan)', fontWeight: 500 }}>
-              ● Under Maintenance
+              ● Inventory Items
             </span>
           </div>
 
@@ -170,7 +165,7 @@ export function DashboardHome({ employees = [], equipmentList = [] }) {
           </div>
         </div>
 
-        {/* Analytics Grid (Responsive Class Applied) */}
+        {/* Analytics Grid */}
         <div className="dashboard-analytics-grid">
           
           {/* Left Column: Live Staff Logins & Sessions */}
