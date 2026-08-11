@@ -6,6 +6,7 @@ import { EmployeesPage } from './components/EmployeesPage'
 import { EquipmentPage } from './components/EquipmentPage'
 import { MaintenancePage } from './components/MaintenancePage'
 import { DocumentsPage } from './components/DocumentsPage'
+import { TasksPage } from './components/TasksPage'
 import { supabase } from './lib/supabase'
 import "./App.css";
 
@@ -265,6 +266,8 @@ function AppContent() {
     switch (activePage) {
       case 'dashboard':
         return <DashboardHome user={user} employees={employees} equipmentList={equipmentList} loadingEmployees={loadingEmployees} />
+      case 'tasks':
+        return <TasksPage user={user} />
       case 'profile':
         return <EmployeeProfilePage user={user} employees={employees} />
       case 'employees':
@@ -338,6 +341,13 @@ function AppContent() {
 
             {/* General Operational Links (Accessible to all Staff) */}
             <div className="nav-section-title" style={{ marginTop: '16px' }}>Operations</div>
+            
+            <button
+              className={`nav-item ${activePage === 'tasks' ? 'active' : ''}`}
+              onClick={() => handleNavClick('tasks')}
+            >
+              ⏰ Tasks & Reminders
+            </button>
             
             <button
               className={`nav-item ${activePage === 'equipment' ? 'active' : ''}`}
