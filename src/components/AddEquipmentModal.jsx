@@ -103,7 +103,7 @@ export function AddEquipmentModal({ onAdd, onClose }) {
         </div>
 
         <div>
-          <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Installation Date</label>
+          <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Installation Date (Optional)</label>
           <input
             type="date"
             value={formData.installation_date}
