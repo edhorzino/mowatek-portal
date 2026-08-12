@@ -15,6 +15,19 @@ export function AddEquipmentModal({ onAdd, onClose }) {
     site_engr_contact: '',
   })
 
+  // List of available equipment types, stored in local state so new additions persist during the session
+  const [equipmentTypes, setEquipmentTypes] = useState([
+    'PUMPS',
+    'CSTP',
+    'PUMPS/CSTP',
+    'GENERATOR',
+    'COMPRESSOR'
+  ])
+
+  // State to track if user chose "ADD_NEW" and what they are typing for the custom name
+  const [isAddingNewType, setIsAddingNewType] = useState(false)
+  const [newCustomType, setNewCustomType] = useState('')
+
   // Auto-calculate Next Maintenance Date based on Last Maintenance & Frequency
   const handleLastMaintenanceChange = (dateVal, freqVal) => {
     const last = dateVal ? new Date(dateVal) : null
@@ -44,7 +57,22 @@ export function AddEquipmentModal({ onAdd, onClose }) {
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    onAdd(formData)
+
+    // Finalize equipment value if custom type was entered
+    let finalEquipment = formData.equipment
+    if (isAddingNewType && newCustomType.trim()) {
+      finalEquipment = newCustomType.trim().toUpperCase()
+      if (!equipmentTypes.includes(finalEquipment)) {
+        setEquipmentTypes([...equipmentTypes, finalEquipment])
+      }
+    }
+
+    const payload = {
+      ...formData,
+      equipment: finalEquipment
+    }
+
+    onAdd(payload)
   }
 
   return (
@@ -89,17 +117,43 @@ export function AddEquipmentModal({ onAdd, onClose }) {
 
         <div>
           <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Equipment *</label>
-          <select
-            value={formData.equipment}
-            onChange={(e) => setFormData({ ...formData, equipment: e.target.value })}
-            style={{ width: '100%', padding: '8px', background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', color: '#fff' }}
-          >
-            <option value="PUMPS">PUMPS</option>
-            <option value="CSTP">CSTP</option>
-            <option value="PUMPS/CSTP">PUMPS/CSTP</option>
-            <option value="GENERATOR">GENERATOR</option>
-            <option value="COMPRESSOR">COMPRESSOR</option>
-          </select>
+          {!isAddingNewType ? (
+            <select
+              value={formData.equipment}
+              onChange={(e) => {
+                if (e.target.value === 'ADD_NEW') {
+                  setIsAddingNewType(true)
+                } else {
+                  setFormData({ ...formData, equipment: e.target.value })
+                }
+              }}
+              style={{ width: '100%', padding: '8px', background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', color: '#fff' }}
+            >
+              {equipmentTypes.map((type) => (
+                <option key={type} value={type}>{type}</option>
+              ))}
+              <option value="ADD_NEW" style={{ color: '#38bdf8', fontWeight: 'bold' }}>+ Add New Equipment Type...</option>
+            </select>
+          ) : (
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <input
+                required
+                type="text"
+                placeholder="Enter new equipment name"
+                value={newCustomType}
+                onChange={(e) => setNewCustomType(e.target.value)}
+                style={{ width: '100%', padding: '8px', background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(56,189,248,0.5)', borderRadius: '6px', color: '#fff' }}
+              />
+              <button 
+                type="button" 
+                onClick={() => { setIsAddingNewType(false); setNewCustomType(''); }}
+                style={{ padding: '0 10px', background: '#475569', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}
+                title="Cancel custom entry"
+              >
+                ✕
+              </button>
+            </div>
+          )}
         </div>
 
         <div>
