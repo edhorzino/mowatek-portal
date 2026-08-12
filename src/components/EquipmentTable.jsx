@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 
-export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete }) {
+export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete, onSelectAsset }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [editingId, setEditingId] = useState(null)
@@ -75,7 +75,7 @@ export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete
         await onUpdate(confirmModalItem.id, {
           last_maintenance: todayStr,
           next_maintenance: nextStr,
-          maintenance_report_url: reportFile.name, // Replace with Supabase storage bucket URL if uploading to bucket
+          maintenance_report_url: reportFile.name,
           invoice_url: hasInvoice ? invoiceFile.name : null,
           invoice_status: hasInvoice ? 'UPLOADED' : 'PENDING',
           invoice_cashed: false
@@ -288,7 +288,13 @@ export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete
 
               return (
                 <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                  <td style={{ padding: '12px', fontWeight: 600, color: '#06b6d4' }}>{item.asset_id}</td>
+                  <td 
+                    onClick={() => onSelectAsset && onSelectAsset(item)}
+                    style={{ padding: '12px', fontWeight: 600, color: '#06b6d4', cursor: 'pointer', textDecoration: 'underline' }}
+                    title="Click to view asset history and vault reports"
+                  >
+                    {item.asset_id}
+                  </td>
                   <td style={{ padding: '12px', color: '#fff' }}>{item.client}</td>
                   <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.site || '—'}</td>
                   <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.equipment || '—'}</td>
@@ -324,7 +330,6 @@ export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete
                         {invoiceStatus === 'CASHED' ? 'INVOICE CASHED' : invoiceStatus === 'UPLOADED' ? 'INVOICE UPLOADED' : 'INVOICE PENDING'}
                       </span>
                       
-                      {/* Admin Toggle for Cashed Status */}
                       <button 
                         onClick={() => handleToggleInvoiceCashed(item)}
                         style={{ background: 'transparent', border: 'none', color: '#38bdf8', fontSize: '10px', cursor: 'pointer', textAlign: 'left', padding: 0, textDecoration: 'underline' }}
