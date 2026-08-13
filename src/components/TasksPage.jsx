@@ -9,6 +9,12 @@ export function TasksPage({ user }) {
   const [reminderDate, setReminderDate] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  // Reschedule Modal State
+  const [rescheduleTask, setRescheduleTask] = useState(null)
+  const [rescheduleDate, setRescheduleDate] = useState('')
+  const [rescheduleNotes, setRescheduleNotes] = useState('')
+  const [rescheduling, setRescheduling] = useState(false)
+
   // Fetch tasks for current user
   useEffect(() => {
     async function fetchTasks() {
@@ -33,11 +39,15 @@ export function TasksPage({ user }) {
   }, [user])
 
   // Quick reminder day calculators (sets target date formatted as YYYY-MM-DD)
-  const setQuickReminder = (daysAhead) => {
+  const setQuickReminder = (daysAhead, isReschedule = false) => {
     const target = new Date()
     target.setDate(target.getDate() + daysAhead)
     const localDateString = target.toISOString().split('T')[0]
-    setReminderDate(localDateString)
+    if (isReschedule) {
+      setRescheduleDate(localDateString)
+    } else {
+      setReminderDate(localDateString)
+    }
   }
 
   const handleAddTask = async (e) => {
@@ -49,7 +59,6 @@ export function TasksPage({ user }) {
 
     try {
       setSubmitting(true)
-      // Automatically lock every reminder time to 09:00:00 AM
       const lockedDateTime = `${reminderDate}T09:00:00.000Z`
 
       const newTaskPayload = {
@@ -92,8 +101,48 @@ export function TasksPage({ user }) {
     }
   }
 
+  const openRescheduleModal = (task) => {
+    setRescheduleTask(task)
+    setRescheduleNotes(task.description || '')
+    // Default modal date picker to tomorrow or current task date part
+    const defaultDate = task.reminder_date ? task.reminder_date.split('T')[0] : ''
+    setRescheduleDate(defaultDate)
+  }
+
+  const handleRescheduleSubmit = async (e) => {
+    e.preventDefault()
+    if (!rescheduleTask || !rescheduleDate) return
+
+    try {
+      setRescheduling(true)
+      const lockedDateTime = `${rescheduleDate}T09:00:00.000Z`
+
+      // Option A: Update existing task's date & description and reset status back to Pending
+      const { data, error } = await supabase
+        .from('tasks')
+        .update({
+          reminder_date: lockedDateTime,
+          description: rescheduleNotes,
+          status: 'Pending'
+        })
+        .eq('id', rescheduleTask.id)
+        .select()
+
+      if (error) throw error
+
+      // Refresh local list state
+      setTasks(tasks.map(t => t.id === rescheduleTask.id ? data[0] : t))
+      setRescheduleTask(null)
+    } catch (err) {
+      console.error('Error rescheduling task:', err.message)
+      alert('Failed to reschedule: ' + err.message)
+    } finally {
+      setRescheduling(false)
+    }
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1000px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1000px', position: 'relative' }}>
       <div>
         <span className="page-eyebrow">PROJECT ALPHA • AUTOMATED WORKFLOWS</span>
         <h1 style={{ fontSize: '28px', fontWeight: 800, margin: '4px 0 8px 0', color: '#fff' }}>
@@ -177,7 +226,14 @@ export function TasksPage({ user }) {
                 <div key={task.id} style={{ background: 'rgba(0,0,0,0.25)', padding: '14px', borderRadius: '8px', borderLeft: '4px solid var(--accent-cyan)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
                     <strong style={{ color: '#fff', fontSize: '14px' }}>{task.title}</strong>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <button
+                        onClick={() => openRescheduleModal(task)}
+                        style={{ background: 'rgba(6, 182, 212, 0.1)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
+                        title="Reschedule Follow-up"
+                      >
+                        Reschedule ⟳
+                      </button>
                       <button
                         onClick={() => handleDeleteTask(task.id)}
                         style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', color: '#10b981', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
@@ -187,7 +243,7 @@ export function TasksPage({ user }) {
                       </button>
                       <button
                         onClick={() => handleDeleteTask(task.id)}
-                        style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px' }}
+                        style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px', padding: '0 2px' }}
                         title="Delete Task"
                       >
                         ✕
@@ -199,7 +255,7 @@ export function TasksPage({ user }) {
                   )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#94a3b8', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px' }}>
                     <span>⏰ Reminder: {new Date(task.reminder_date).toLocaleString()}</span>
-                    <span style={{ color: '#10b981', fontWeight: 600 }}>● Active</span>
+                    <span style={{ color: task.status === 'Sent' ? '#f59e0b' : '#10b981', fontWeight: 600 }}>● {task.status || 'Active'}</span>
                   </div>
                 </div>
               ))}
@@ -208,6 +264,86 @@ export function TasksPage({ user }) {
         </div>
 
       </div>
+
+      {/* Reschedule Modal Popup */}
+      {rescheduleTask && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'rgba(0,0,0,0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }}>
+          <div className="content-card" style={{ width: '100%', maxWidth: '480px', background: '#1e293b', border: '1px solid rgba(255,255,255,0.15)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, color: '#fff', fontSize: '18px' }}>Reschedule Reminder</h3>
+              <button
+                onClick={() => setRescheduleTask(null)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: '16px', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: '0 0 16px 0' }}>
+              Updating follow-up for: <strong style={{ color: '#fff' }}>{rescheduleTask.title}</strong>
+            </p>
+
+            <form onSubmit={handleRescheduleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Quick Frequency Select</label>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                  <button type="button" onClick={() => setQuickReminder(1, true)} style={{ padding: '6px 10px', background: 'rgba(6,182,212,0.1)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>Tomorrow</button>
+                  <button type="button" onClick={() => setQuickReminder(3, true)} style={{ padding: '6px 10px', background: 'rgba(6,182,212,0.1)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>In 3 Days</button>
+                  <button type="button" onClick={() => setQuickReminder(7, true)} style={{ padding: '6px 10px', background: 'rgba(6,182,212,0.1)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>In 1 Week</button>
+                </div>
+
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>New Reminder Date (Delivers at 9:00 AM)</label>
+                <input
+                  type="date"
+                  value={rescheduleDate}
+                  onChange={(e) => setRescheduleDate(e.target.value)}
+                  style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#fff' }}
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Update Notes / Details (Optional)</label>
+                <textarea
+                  value={rescheduleNotes}
+                  onChange={(e) => setRescheduleNotes(e.target.value)}
+                  rows="3"
+                  style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#fff', resize: 'vertical' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setRescheduleTask(null)}
+                  style={{ flex: 1, background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', padding: '10px', fontWeight: 600, borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={rescheduling}
+                  style={{ flex: 1, background: 'var(--accent-cyan)', color: '#0f172a', border: 'none', padding: '10px', fontWeight: 700, borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  {rescheduling ? 'Saving...' : 'Confirm Reschedule'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
