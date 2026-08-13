@@ -104,7 +104,6 @@ export function TasksPage({ user }) {
   const openRescheduleModal = (task) => {
     setRescheduleTask(task)
     setRescheduleNotes(task.description || '')
-    // Default modal date picker to tomorrow or current task date part
     const defaultDate = task.reminder_date ? task.reminder_date.split('T')[0] : ''
     setRescheduleDate(defaultDate)
   }
@@ -117,7 +116,6 @@ export function TasksPage({ user }) {
       setRescheduling(true)
       const lockedDateTime = `${rescheduleDate}T09:00:00.000Z`
 
-      // Option A: Update existing task's date & description and reset status back to Pending
       const { data, error } = await supabase
         .from('tasks')
         .update({
@@ -130,7 +128,6 @@ export function TasksPage({ user }) {
 
       if (error) throw error
 
-      // Refresh local list state
       setTasks(tasks.map(t => t.id === rescheduleTask.id ? data[0] : t))
       setRescheduleTask(null)
     } catch (err) {
@@ -227,13 +224,15 @@ export function TasksPage({ user }) {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
                     <strong style={{ color: '#fff', fontSize: '14px' }}>{task.title}</strong>
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                      <button
-                        onClick={() => openRescheduleModal(task)}
-                        style={{ background: 'rgba(6, 182, 212, 0.1)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
-                        title="Reschedule Follow-up"
-                      >
-                        Reschedule ⟳
-                      </button>
+                      {task.status === 'Sent' && (
+                        <button
+                          onClick={() => openRescheduleModal(task)}
+                          style={{ background: 'rgba(6, 182, 212, 0.1)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
+                          title="Reschedule Follow-up"
+                        >
+                          Reschedule ⟳
+                        </button>
+                      )}
                       <button
                         onClick={() => handleDeleteTask(task.id)}
                         style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', color: '#10b981', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
