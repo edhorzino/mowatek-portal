@@ -178,6 +178,7 @@ export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete
         <span style={{ alignSelf: 'center', fontSize: '13px', color: '#94a3b8' }}>
           {filteredItems.length} of {equipmentList.length} assets
         </span>
+
       </div>
 
       {/* Confirmation Modal with File Uploads */}
