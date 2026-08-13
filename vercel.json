@@ -1,6 +1,6 @@
 {
   "functions": {
-    "api/check-reminders.js": {
+    "src/api/check-reminders.js": {
       "maxDuration": 30
     }
   },
