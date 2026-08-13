@@ -177,13 +177,22 @@ export function TasksPage({ user }) {
                 <div key={task.id} style={{ background: 'rgba(0,0,0,0.25)', padding: '14px', borderRadius: '8px', borderLeft: '4px solid var(--accent-cyan)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
                     <strong style={{ color: '#fff', fontSize: '14px' }}>{task.title}</strong>
-                    <button
-                      onClick={() => handleDeleteTask(task.id)}
-                      style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px' }}
-                      title="Delete Task"
-                    >
-                      ✕
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <button
+                        onClick={() => handleDeleteTask(task.id)}
+                        style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', color: '#10b981', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
+                        title="Mark Complete & Delete"
+                      >
+                        Complete ✓
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTask(task.id)}
+                        style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px' }}
+                        title="Delete Task"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
                   {task.description && (
                     <p style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '13px' }}>{task.description}</p>
