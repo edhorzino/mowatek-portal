@@ -40,8 +40,8 @@ export default async function handler(req, res) {
 
       try {
         await resend.emails.send({
-          from: 'Project Alpha <onboarding@resend.dev>',
-          to: task.user_email, // Make sure this matches your personal account email during testing
+          from: 'Project Alpha <notifications@reminder.mowatek.com>',
+          to: task.user_email,
           subject: `Reminder: ${task.title}`,
           html: `
             <div style="font-family: Arial, sans-serif; padding: 24px; background: #0f172a; color: #f8fafc; border-radius: 8px;">
