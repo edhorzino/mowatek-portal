@@ -32,29 +32,31 @@ export function TasksPage({ user }) {
     fetchTasks()
   }, [user])
 
-  // Quick reminder time calculators
-  const setQuickReminder = (hoursAhead) => {
-    const target = new Date(new Date().getTime() + hoursAhead * 60 * 60 * 1000)
-    // Format to local ISO string for datetime-local input
-    const tzOffset = target.getTimezoneOffset() * 60000
-    const localISOTime = new Date(target - tzOffset).toISOString().slice(0, 16)
-    setReminderDate(localISOTime)
+  // Quick reminder day calculators (sets target date formatted as YYYY-MM-DD)
+  const setQuickReminder = (daysAhead) => {
+    const target = new Date()
+    target.setDate(target.getDate() + daysAhead)
+    const localDateString = target.toISOString().split('T')[0]
+    setReminderDate(localDateString)
   }
 
   const handleAddTask = async (e) => {
     e.preventDefault()
     if (!title || !reminderDate) {
-      alert('Please provide a task title and reminder time.')
+      alert('Please provide a task title and reminder date.')
       return
     }
 
     try {
       setSubmitting(true)
+      // Automatically lock every reminder time to 09:00:00 AM
+      const lockedDateTime = `${reminderDate}T09:00:00.000Z`
+
       const newTaskPayload = {
         user_email: user.email.toLowerCase(),
         title,
         description,
-        reminder_date: new Date(reminderDate).toISOString(),
+        reminder_date: lockedDateTime,
         status: 'Pending'
       }
 
@@ -98,7 +100,7 @@ export function TasksPage({ user }) {
           Smart Task Reminders
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: 0 }}>
-          Create tasks, set custom reminder schedules, and never miss a client follow-up.
+          Create tasks, pick a reminder day, and receive morning email digests at 9:00 AM.
         </p>
       </div>
 
@@ -134,14 +136,14 @@ export function TasksPage({ user }) {
             <div>
               <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Quick Frequency Select</label>
               <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
-                <button type="button" onClick={() => setQuickReminder(24)} style={{ padding: '6px 10px', background: 'rgba(6,182,212,0.1)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>In 24 Hours</button>
-                <button type="button" onClick={() => setQuickReminder(48)} style={{ padding: '6px 10px', background: 'rgba(6,182,212,0.1)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>In 2 Days</button>
-                <button type="button" onClick={() => setQuickReminder(168)} style={{ padding: '6px 10px', background: 'rgba(6,182,212,0.1)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>In 1 Week</button>
+                <button type="button" onClick={() => setQuickReminder(1)} style={{ padding: '6px 10px', background: 'rgba(6,182,212,0.1)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>Tomorrow</button>
+                <button type="button" onClick={() => setQuickReminder(2)} style={{ padding: '6px 10px', background: 'rgba(6,182,212,0.1)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>In 2 Days</button>
+                <button type="button" onClick={() => setQuickReminder(7)} style={{ padding: '6px 10px', background: 'rgba(6,182,212,0.1)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>In 1 Week</button>
               </div>
 
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Exact Reminder Date & Time</label>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Reminder Date (Delivers at 9:00 AM)</label>
               <input
-                type="datetime-local"
+                type="date"
                 value={reminderDate}
                 onChange={(e) => setReminderDate(e.target.value)}
                 style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#fff' }}
