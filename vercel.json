@@ -9,5 +9,9 @@
       "path": "/api/check-reminders",
       "schedule": "0 * * * *"
     }
+  ],
+  "rewrites": [
+    { "source": "/api/check-reminders", "destination": "/api/check-reminders" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
