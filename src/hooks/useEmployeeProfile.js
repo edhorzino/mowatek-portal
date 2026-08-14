@@ -20,7 +20,7 @@ export function useEmployeeProfile() {
         const { data: employeeData, error: dbError } = await supabase
           .from('employees')
           .select('*')
-          .ilike('email', user.email) // Case-insensitive email match
+          .ilike('work_email', user.email) // Case-insensitive email match
           .single()
 
         if (dbError || !employeeData) {
