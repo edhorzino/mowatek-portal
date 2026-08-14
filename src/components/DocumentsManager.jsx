@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { ClientFoldersView } from './ClientFoldersView'
 import { AdminPanel } from './AdminPanel'
+import { MassUploadModal } from './MassUploadModal'
 
 export function DocumentsManager() {
   const { user } = useAuth()
@@ -24,6 +25,9 @@ export function DocumentsManager() {
 
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
+
+  // Mass Upload Modal State
+  const [isMassUploadOpen, setIsMassUploadOpen] = useState(false)
 
   // Form State
   const [title, setTitle] = useState('')
@@ -158,7 +162,7 @@ export function DocumentsManager() {
     <div style={{ padding: '32px', color: '#fff', fontFamily: 'system-ui, sans-serif', maxWidth: '1300px', margin: '0 auto' }}>
       
       {/* Top Navigation Tabs */}
-      <div style={{ display: 'flex', gap: '16px', marginBottom: '28px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '16px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '16px', marginBottom: '28px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
         <button 
           onClick={() => { setActiveTab('recent'); setSelectedFolderType(null); }}
           style={{ background: activeTab === 'recent' ? '#3b82f6' : 'rgba(255,255,255,0.05)', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}
@@ -179,9 +183,17 @@ export function DocumentsManager() {
         </button>
         <button 
           onClick={() => { setActiveTab('upload'); setSelectedFolderType(null); }}
-          style={{ background: activeTab === 'upload' ? '#06b6d4' : 'rgba(255,255,255,0.05)', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', marginLeft: 'auto' }}
+          style={{ background: activeTab === 'upload' ? '#06b6d4' : 'rgba(255,255,255,0.05)', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}
         >
           + Register & Upload Document
+        </button>
+
+        {/* Mass Upload Action Button */}
+        <button 
+          onClick={() => setIsMassUploadOpen(true)}
+          style={{ background: 'linear-gradient(135deg, #06b6d4, #3b82f6)', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', marginLeft: 'auto' }}
+        >
+          ⚡ Mass Upload Past Docs
         </button>
       </div>
 
@@ -193,72 +205,72 @@ export function DocumentsManager() {
         </div>
       )}
 
-{/* VIEW 2: MASTER FOLDERS (Internal vs Client Folders) */}
-  {activeTab === 'folders' && (
-    <div>
-      {!selectedFolderType ? (
+      {/* VIEW 2: MASTER FOLDERS (Internal vs Client Folders) */}
+      {activeTab === 'folders' && (
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: '700', margin: 0 }}>Master Document Vault Folders</h2>
-            {/* Global Search Bar inside Folders View */}
-            <input 
-              type="text"
-              value={folderSearchQuery}
-              onChange={(e) => setFolderSearchQuery(e.target.value)}
-              placeholder="Search any document across all folders..."
-              style={{ padding: '10px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', width: '300px' }}
-            />
-          </div>
-
-          {folderSearchQuery.trim() ? (
+          {!selectedFolderType ? (
             <div>
-              <p style={{ color: '#06b6d4', fontSize: '13px', marginBottom: '12px' }}>Search results for "{folderSearchQuery}":</p>
-              <DocumentTable docs={getFolderFilteredDocs(documents)} loading={loading} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                <h2 style={{ fontSize: '20px', fontWeight: '700', margin: 0 }}>Master Document Vault Folders</h2>
+                {/* Global Search Bar inside Folders View */}
+                <input 
+                  type="text"
+                  value={folderSearchQuery}
+                  onChange={(e) => setFolderSearchQuery(e.target.value)}
+                  placeholder="Search any document across all folders..."
+                  style={{ padding: '10px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', width: '300px' }}
+                />
+              </div>
+
+              {folderSearchQuery.trim() ? (
+                <div>
+                  <p style={{ color: '#06b6d4', fontSize: '13px', marginBottom: '12px' }}>Search results for "{folderSearchQuery}":</p>
+                  <DocumentTable docs={getFolderFilteredDocs(documents)} loading={loading} />
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', marginTop: '16px' }}>
+                  <div 
+                    onClick={() => setSelectedFolderType('INTERNAL')}
+                    style={{ background: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(255,255,255,0.1)', padding: '24px', borderRadius: '12px', cursor: 'pointer', textAlign: 'center' }}
+                  >
+                    <div style={{ fontSize: '48px', marginBottom: '12px' }}>📁</div>
+                    <h3 style={{ fontSize: '18px', fontWeight: '700' }}>Internal Documents</h3>
+                    <p style={{ color: '#94a3b8', fontSize: '13px', marginTop: '6px' }}>
+                      {documents.filter(d => d.client_name === 'Internal').length} items • Company-wide records
+                    </p>
+                  </div>
+                  <div 
+                    onClick={() => setSelectedFolderType('CLIENTS')}
+                    style={{ background: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(255,255,255,0.1)', padding: '24px', borderRadius: '12px', cursor: 'pointer', textAlign: 'center' }}
+                  >
+                    <div style={{ fontSize: '48px', marginBottom: '12px' }}>🗂️</div>
+                    <h3 style={{ fontSize: '18px', fontWeight: '700' }}>Client Folders</h3>
+                    <p style={{ color: '#94a3b8', fontSize: '13px', marginTop: '6px' }}>
+                      {clients.length} active client profiles & vaults
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : selectedFolderType === 'INTERNAL' ? (
+            <div>
+              <button onClick={() => setSelectedFolderType(null)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', marginBottom: '16px', fontWeight: '600' }}>← Back to Folders</button>
+              <h2 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '16px' }}>📁 Internal Documents</h2>
+              <DocumentTable docs={getFolderFilteredDocs(documents.filter(d => d.client_name === 'Internal'))} loading={loading} />
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', marginTop: '16px' }}>
-              <div 
-                onClick={() => setSelectedFolderType('INTERNAL')}
-                style={{ background: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(255,255,255,0.1)', padding: '24px', borderRadius: '12px', cursor: 'pointer', textAlign: 'center' }}
-              >
-                <div style={{ fontSize: '48px', marginBottom: '12px' }}>📁</div>
-                <h3 style={{ fontSize: '18px', fontWeight: '700' }}>Internal Documents</h3>
-                <p style={{ color: '#94a3b8', fontSize: '13px', marginTop: '6px' }}>
-                  {documents.filter(d => d.client_name === 'Internal').length} items • Company-wide records
-                </p>
-              </div>
-              <div 
-                onClick={() => setSelectedFolderType('CLIENTS')}
-                style={{ background: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(255,255,255,0.1)', padding: '24px', borderRadius: '12px', cursor: 'pointer', textAlign: 'center' }}
-              >
-                <div style={{ fontSize: '48px', marginBottom: '12px' }}>🗂️</div>
-                <h3 style={{ fontSize: '18px', fontWeight: '700' }}>Client Folders</h3>
-                <p style={{ color: '#94a3b8', fontSize: '13px', marginTop: '6px' }}>
-                  {clients.length} active client profiles & vaults
-                </p>
-              </div>
+            <div>
+              <button onClick={() => { setSelectedFolderType(null); setSelectedClientFolder(null); }} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', marginBottom: '16px', fontWeight: '600' }}>← Back to Folders</button>
+              <ClientFoldersView />
             </div>
           )}
         </div>
-      ) : selectedFolderType === 'INTERNAL' ? (
-        <div>
-          <button onClick={() => setSelectedFolderType(null)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', marginBottom: '16px', fontWeight: '600' }}>← Back to Folders</button>
-          <h2 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '16px' }}>📁 Internal Documents</h2>
-          <DocumentTable docs={getFolderFilteredDocs(documents.filter(d => d.client_name === 'Internal'))} loading={loading} />
-        </div>
-      ) : (
-        <div>
-          <button onClick={() => { setSelectedFolderType(null); setSelectedClientFolder(null); }} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', marginBottom: '16px', fontWeight: '600' }}>← Back to Folders</button>
-          
-          <ClientFoldersView />
-        </div>
       )}
-    </div>
-  )}
 
-  {/* VIEW 3: ADMIN ACCESS CONTROL */}
-  {activeTab === 'admin' && <AdminPanel />}
-      {/* VIEW 3: ADVANCED SEARCH & FILTERS */}
+      {/* VIEW 3: ADMIN ACCESS CONTROL */}
+      {activeTab === 'admin' && <AdminPanel />}
+
+      {/* VIEW 3 (Alternate): ADVANCED SEARCH & FILTERS */}
       {activeTab === 'search' && (
         <div>
           <h2 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '16px' }}>Advanced Search & Filters</h2>
@@ -398,6 +410,18 @@ export function DocumentsManager() {
             </button>
           </form>
         </div>
+      )}
+
+      {/* Mass Upload Modal Popup */}
+      {isMassUploadOpen && (
+        <MassUploadModal 
+          clients={clients} 
+          onClose={() => setIsMassUploadOpen(false)} 
+          onUploadComplete={() => {
+            fetchData()
+            setIsMassUploadOpen(false)
+          }} 
+        />
       )}
 
     </div>
