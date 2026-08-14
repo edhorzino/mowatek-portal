@@ -29,8 +29,7 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
       const formattedTitle = cleanName.replace(/[_]/g, ' ')
 
       return {
-        id: Math.random().toString(36.substring(2)),
-        file: file,
+id: Math.random().toString(36).substring(2), // ✅ Correct        file: file,
         title: formattedTitle,
         category: defaultCategory,
         size: `${(file.size / 1024 / 1024).toFixed(2)} MB`
