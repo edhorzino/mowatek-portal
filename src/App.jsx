@@ -10,6 +10,18 @@ import { TasksPage } from './components/TasksPage'
 import { supabase } from './lib/supabase'
 import "./App.css";
 
+// Global error handler to suppress harmless browser extension promise rejections (like MetaMask/Web3 ports)
+window.addEventListener('unhandledrejection', (event) => {
+  if (
+    event.reason && 
+    (event.reason.message?.includes('ObjectMultiplex') || 
+     event.reason.message?.includes('message channel closed') ||
+     event.reason.message?.includes('liveness'))
+  ) {
+    event.preventDefault()
+  }
+})
+
 // Helper component for Individual Employee Profile View (Step 4)
 function EmployeeProfilePage({ user, employees }) {
   // Find current user's employee record if matched by email
