@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { supabase } from '../supabaseClient' // Adjust path if needed
+import { supabase } from '../supabaseClient'
+import { MassUploadModal } from './MassUploadModal'
 
 // Document Types from Mowatek Codebook (Section 1.0)
 const DOC_TYPES = [
@@ -76,6 +77,7 @@ const ACCESS_CODES = [
 
 export function DocumentsPage() {
   const [documents, setDocuments] = useState([])
+  const [clients, setClients] = useState([])
   const [title, setTitle] = useState('')
   const [docType, setDocType] = useState('RFQ')
   const [department, setDepartment] = useState('ENG')
@@ -86,42 +88,50 @@ export function DocumentsPage() {
   const [selectedFile, setSelectedFile] = useState(null)
   const [isUploading, setIsUploading] = useState(false)
 
+  // Mass Upload Modal State
+  const [isMassUploadOpen, setIsMassUploadOpen] = useState(false)
+
   const currentYear = new Date().getFullYear()
 
-  // Fetch documents from Supabase on load
-  useEffect(() => {
-    async function fetchDocuments() {
-      try {
-        const { data, error } = await supabase
-          .from('documents')
-          .select('*')
-          .order('created_at', { ascending: false })
+  // Fetch documents and clients from Supabase on load
+  const fetchData = async () => {
+    try {
+      const [docRes, clientRes] = await Promise.all([
+        supabase.from('documents').select('*').order('created_at', { ascending: false }),
+        supabase.from('clients').select('*').order('client_name', { ascending: true })
+      ])
 
-        if (error) throw error
+      if (docRes.error) throw docRes.error
 
-        const formatted = (data || []).map(doc => ({
-          id: doc.id,
-          docNumber: doc.doc_number,
-          docType: doc.doc_type,
-          year: doc.year,
-          title: doc.title,
-          department: doc.department,
-          client: doc.client,
-          project: doc.project,
-          version: doc.version,
-          status: doc.status,
-          access: doc.access,
-          fileName: doc.file_name,
-          fileSize: doc.file_size,
-          fileUrl: doc.file_url,
-          uploadedAt: new Date(doc.created_at).toLocaleDateString()
-        }))
-        setDocuments(formatted)
-      } catch (err) {
-        console.error('Error fetching documents:', err.message)
+      const formatted = (docRes.data || []).map(doc => ({
+        id: doc.id,
+        docNumber: doc.doc_number,
+        docType: doc.doc_type,
+        year: doc.year,
+        title: doc.title,
+        department: doc.department,
+        client: doc.client,
+        project: doc.project,
+        version: doc.version,
+        status: doc.status,
+        access: doc.access,
+        fileName: doc.file_name,
+        fileSize: doc.file_size,
+        fileUrl: doc.file_url,
+        uploadedAt: new Date(doc.created_at).toLocaleDateString()
+      }))
+      setDocuments(formatted)
+
+      if (!clientRes.error) {
+        setClients(clientRes.data || [])
       }
+    } catch (err) {
+      console.error('Error fetching data:', err.message)
     }
-    fetchDocuments()
+  }
+
+  useEffect(() => {
+    fetchData()
   }, [])
 
   const generatedDocId = useMemo(() => {
@@ -189,27 +199,7 @@ export function DocumentsPage() {
 
       if (dbError) throw dbError
 
-      if (data && data.length > 0) {
-        const saved = data[0]
-        const newDocFormatted = {
-          id: saved.id,
-          docNumber: saved.doc_number,
-          docType: saved.doc_type,
-          year: saved.year,
-          title: saved.title,
-          department: saved.department,
-          client: saved.client,
-          project: saved.project,
-          version: saved.version,
-          status: saved.status,
-          access: saved.access,
-          fileName: saved.file_name,
-          fileSize: saved.file_size,
-          fileUrl: saved.file_url,
-          uploadedAt: new Date(saved.created_at).toLocaleDateString()
-        }
-        setDocuments([newDocFormatted, ...documents])
-      }
+      await fetchData()
 
       // Reset form
       setTitle('')
@@ -225,7 +215,7 @@ export function DocumentsPage() {
     }
   }
 
-  const handleDelete = async (id, fileUrl) => {
+  const handleDelete = async (id) => {
     try {
       const { error } = await supabase
         .from('documents')
@@ -243,10 +233,20 @@ export function DocumentsPage() {
 
   return (
     <div>
-      <div className="page-heading">
-        <span className="page-eyebrow">MWT-SOP-2026-001 COMPLIANT</span>
-        <h1>Controlled Document Vault</h1>
-        <p>Enterprise document registration and metadata tracking.</p>
+      <div className="page-heading" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <span className="page-eyebrow">MWT-SOP-2026-001 COMPLIANT</span>
+          <h1>Controlled Document Vault</h1>
+          <p>Enterprise document registration and metadata tracking.</p>
+        </div>
+
+        {/* Mass Upload Action Button */}
+        <button 
+          onClick={() => setIsMassUploadOpen(true)}
+          style={{ background: 'linear-gradient(135deg, #06b6d4, #3b82f6)', color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(6, 182, 212, 0.3)' }}
+        >
+          ⚡ Mass Upload Past Docs
+        </button>
       </div>
 
       <div className="content-card" style={{ marginBottom: '24px' }}>
@@ -387,7 +387,7 @@ export function DocumentsPage() {
 
             <div>
               <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>
-                Attach File
+                Attach File (Single)
               </label>
               <input
                 type="file"
@@ -493,6 +493,18 @@ export function DocumentsPage() {
           </table>
         </div>
       </div>
+
+      {/* Mass Upload Modal Popup */}
+      {isMassUploadOpen && (
+        <MassUploadModal 
+          clients={clients} 
+          onClose={() => setIsMassUploadOpen(false)} 
+          onUploadComplete={() => {
+            fetchData()
+            setIsMassUploadOpen(false)
+          }} 
+        />
+      )}
     </div>
   )
 }
