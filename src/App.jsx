@@ -22,9 +22,8 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 })
 
-// Helper component for Individual Employee Profile View (Step 4)
+// Helper component for Individual Employee Profile View
 function EmployeeProfilePage({ user, employees }) {
-  // Find current user's employee record if matched by email
   const currentEmployeeRecord = employees.find(
     (emp) => emp.workEmail?.toLowerCase() === user?.email?.toLowerCase()
   ) || {
@@ -107,14 +106,12 @@ function AppContent() {
   const [activePage, setActivePage] = useState('dashboard')
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  // State definitions
   const [employees, setEmployees] = useState([])
   const [loadingEmployees, setLoadingEmployees] = useState(true)
   const [equipmentList, setEquipmentList] = useState([])
 
   const userEmail = user?.email?.toLowerCase() || ''
   
-  // List of hardcoded admin emails
   const adminEmails = [
     'ewomazino.edhor@mowatek.com',
     'enite.wekpe@mowatek.com',
@@ -127,7 +124,6 @@ function AppContent() {
     userEmail.includes('management') || 
     userEmail.includes('hr')
 
-  // Fetch and map employees from Supabase on load
   useEffect(() => {
     async function fetchEmployees() {
       if (!user) return
@@ -174,7 +170,6 @@ function AppContent() {
     setMobileOpen(false)
   }
 
-  // Database-connected Add Employee handler
   const handleAddEmployee = async (newEmp) => {
     try {
       const payload = {
@@ -222,7 +217,6 @@ function AppContent() {
     }
   }
 
-  // Database-connected Update Employee handler
   const handleUpdateEmployee = async (targetId, updatedRecord) => {
     try {
       const { error } = await supabase
@@ -255,7 +249,6 @@ function AppContent() {
     }
   }
 
-  // Database-connected Delete Employee handler
   const handleDeleteEmployee = async (targetId) => {
     try {
       const { error } = await supabase
@@ -305,7 +298,6 @@ function AppContent() {
 
   return (
     <div className="dashboard-layout">
-      {/* Top Header for Mobile Screens */}
       <header className="mobile-topbar">
         <button className="hamburger-btn" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Toggle Menu">
           ☰
@@ -314,13 +306,11 @@ function AppContent() {
         <span style={{ fontSize: '11px', color: '#06b6d4' }}>PORTAL</span>
       </header>
 
-      {/* Dark Overlay for Mobile Drawer */}
       <div
         className={`sidebar-overlay ${mobileOpen ? 'mobile-open' : ''}`}
         onClick={() => setMobileOpen(false)}
       />
 
-      {/* Sidebar Navigation with Role Restrictions */}
       <aside className={`sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
         <div>
           <div className="brand-section">
@@ -351,7 +341,6 @@ function AppContent() {
               🪪 My Profile
             </button>
 
-            {/* General Operational Links (Accessible to all Staff) */}
             <div className="nav-section-title" style={{ marginTop: '16px' }}>Operations</div>
             
             <button
@@ -382,7 +371,6 @@ function AppContent() {
               🔧 Maintenance
             </button>
 
-            {/* Restricted Management Links (Admin Only) */}
             {isAdmin && (
               <>
                 <div className="nav-section-title" style={{ marginTop: '16px' }}>Management</div>
@@ -397,7 +385,6 @@ function AppContent() {
           </nav>
         </div>
 
-        {/* User Card with functional Sign Out */}
         <div className="user-profile-card">
           <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff', wordBreak: 'break-all' }}>
             {user?.email || user?.username || 'User'}
@@ -409,7 +396,6 @@ function AppContent() {
         </div>
       </aside>
 
-      {/* Content Render View */}
       <main className="content-main">
         {renderPage()}
       </main>

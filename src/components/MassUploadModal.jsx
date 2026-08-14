@@ -22,14 +22,15 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
   }
 
   const processFiles = (files) => {
-    const formattedFiles = files.map((file, index) => {
+    const formattedFiles = files.map((file) => {
       // Strip file extension to create a neat default title
       const cleanName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name
       // Format title: Replace underscores/hyphens with spaces and capitalize words nicely
       const formattedTitle = cleanName.replace(/[_]/g, ' ')
 
       return {
-id: Math.random().toString(36).substring(2), // ✅ Correct        file: file,
+        id: Math.random().toString(36).substring(2),
+        file: file,
         title: formattedTitle,
         category: defaultCategory,
         size: `${(file.size / 1024 / 1024).toFixed(2)} MB`
@@ -137,7 +138,7 @@ id: Math.random().toString(36).substring(2), // ✅ Correct        file: file,
                   style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', color: '#fff' }}
                 >
                   <option value="">-- Select Client Folder --</option>
-                  {clients.map(c => <option key={c.id} value={c.client_name}>{c.client_name}</option>)}
+                  {clients && clients.map(c => <option key={c.id} value={c.client_name}>{c.client_name}</option>)}
                 </select>
               )}
             </div>
