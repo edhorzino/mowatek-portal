@@ -5,7 +5,7 @@ import { useEmployeeProfile } from '../hooks/useEmployeeProfile'
 export function DashboardHome({ employees = [] }) {
   const { profile, loading: profileLoading } = useEmployeeProfile()
   
-  const totalEmployees = employees.length || 8
+  const totalEmployees = employees.length
 
   // State for equipment and documents
   const [equipmentList, setEquipmentList] = useState([])
@@ -67,7 +67,7 @@ export function DashboardHome({ employees = [] }) {
   // 2. Dynamic Maintenance Due Soon Count based on Frequency Rules
   const upcomingMaintenanceCount = equipmentList.filter(item => {
     // Check various common date property names in your schema
-    const dateStr = item.nextMaintenance || item.maintenanceDate || item.due_date || item.next_service_date || item.lastServiceDate
+    const dateStr = item.next_maintenance || item.nextMaintenance || item.maintenanceDate || item.due_date || item.next_service_date || item.lastServiceDate
     if (!dateStr) return false
 
     const dueDate = new Date(dateStr)
@@ -76,7 +76,7 @@ export function DashboardHome({ employees = [] }) {
     const today = new Date()
     
     // Determine threshold days based on maintenance frequency
-    const frequency = (item.frequency || item.maintenanceFrequency || '').toLowerCase()
+    const frequency = (item.maintenance_frequency || item.frequency || item.maintenanceFrequency || '').toLowerCase()
     let thresholdDays = 30 // Default for quarterly, 6 months, annual, etc.
 
     if (frequency.includes('bi-weekly') || frequency.includes('biweekly') || frequency.includes('fortnight')) {

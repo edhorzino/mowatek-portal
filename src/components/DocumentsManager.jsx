@@ -6,7 +6,8 @@ import { AdminPanel } from './AdminPanel'
 import { MassUploadModal } from './MassUploadModal'
 
 export function DocumentsManager() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
+  const isAdmin = profile?.role === 'admin'
   const [documents, setDocuments] = useState([])
   const [clients, setClients] = useState([])
   
@@ -266,12 +267,12 @@ export function DocumentsManager() {
         >
           + Register & Upload Document
         </button>
-        <button 
+        {isAdmin && <button
           onClick={() => { setActiveTab('admin'); setSelectedFolderType(null); }}
           style={tabButtonStyle(activeTab === 'admin')}
         >
           ⚙️ Admin Panel
-        </button>
+        </button>}
       </div>
 
       {/* VIEW 1: RECENT 10 DOCUMENTS */}
@@ -350,7 +351,7 @@ export function DocumentsManager() {
       )}
 
       {/* VIEW 3: ADMIN ACCESS CONTROL */}
-      {activeTab === 'admin' && <AdminPanel />}
+      {activeTab === 'admin' && isAdmin && <AdminPanel />}
 
       {/* VIEW 4: ADVANCED SEARCH & FILTERS */}
       {activeTab === 'search' && (

@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react'
 
-export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete, onSelectAsset }) {
+export function EquipmentTable({ equipmentList = [], loading, isAdmin = false, onUpdate, onDelete, onSelectAsset, onCompleteMaintenance }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
+  const [clientFilter, setClientFilter] = useState('ALL')
   const [editingId, setEditingId] = useState(null)
   const [editFormData, setEditFormData] = useState({})
 
@@ -69,18 +70,12 @@ export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete
       const todayStr = new Date().toISOString().split('T')[0]
       const nextStr = calculateNextDate(todayStr, confirmModalItem.maintenance_frequency || confirmModalItem.maintenanceFrequency)
       
-      const hasInvoice = Boolean(invoiceFile)
-
-      if (onUpdate) {
-        await onUpdate(confirmModalItem.id, {
-          last_maintenance: todayStr,
-          next_maintenance: nextStr,
-          maintenance_report_url: reportFile.name,
-          invoice_url: hasInvoice ? invoiceFile.name : null,
-          invoice_status: hasInvoice ? 'UPLOADED' : 'PENDING',
-          invoice_cashed: false
-        })
-      }
+      await onCompleteMaintenance?.(confirmModalItem, {
+        reportFile,
+        invoiceFile,
+        completedDate: todayStr,
+        nextMaintenanceDate: nextStr,
+      })
 
       setConfirmModalItem(null)
       setReportFile(null)
@@ -104,6 +99,8 @@ export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete
     }
   }
 
+  const clientFolders = useMemo(() => [...new Set(equipmentList.map(item => item.client).filter(Boolean))].sort(), [equipmentList])
+
   const filteredItems = useMemo(() => {
     return equipmentList.filter((item) => {
       const q = search.trim().toLowerCase()
@@ -115,10 +112,11 @@ export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete
       const nextMaint = item.next_maintenance || item.nextMaintenance
       const currentStatus = calculateStatus(nextMaint)
       const matchesStatus = statusFilter === 'ALL' || currentStatus === statusFilter
+      const matchesClient = clientFilter === 'ALL' || item.client === clientFilter
 
-      return matchesSearch && matchesStatus
+      return matchesSearch && matchesStatus && matchesClient
     })
-  }, [equipmentList, search, statusFilter])
+  }, [equipmentList, search, statusFilter, clientFilter])
 
   const pendingInvoicesCount = useMemo(() => {
     return equipmentList.filter(i => i.invoice_status === 'PENDING' || !i.invoice_status).length
@@ -173,6 +171,11 @@ export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete
           <option value="OK">OK</option>
           <option value="DUE SOON">DUE SOON</option>
           <option value="OVERDUE">OVERDUE</option>
+        </select>
+
+        <select value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} style={{ padding: '8px 12px', background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff' }}>
+          <option value="ALL">All Client Folders</option>
+          {clientFolders.map(client => <option key={client} value={client}>📁 {client}</option>)}
         </select>
 
         <span style={{ alignSelf: 'center', fontSize: '13px', color: '#94a3b8' }}>
@@ -331,12 +334,14 @@ export function EquipmentTable({ equipmentList = [], loading, onUpdate, onDelete
                         {invoiceStatus === 'CASHED' ? 'INVOICE CASHED' : invoiceStatus === 'UPLOADED' ? 'INVOICE UPLOADED' : 'INVOICE PENDING'}
                       </span>
                       
-                      <button 
-                        onClick={() => handleToggleInvoiceCashed(item)}
-                        style={{ background: 'transparent', border: 'none', color: '#38bdf8', fontSize: '10px', cursor: 'pointer', textAlign: 'left', padding: 0, textDecoration: 'underline' }}
-                      >
-                        {item.invoice_cashed ? 'Mark Uncashed' : 'Mark Cashed (Admin)'}
-                      </button>
+                      {isAdmin && item.invoice_url && (
+                        <button
+                          onClick={() => handleToggleInvoiceCashed(item)}
+                          style={{ background: 'transparent', border: 'none', color: '#38bdf8', fontSize: '10px', cursor: 'pointer', textAlign: 'left', padding: 0, textDecoration: 'underline' }}
+                        >
+                          {item.invoice_cashed ? 'Mark Uncashed' : 'Mark Cashed'}
+                        </button>
+                      )}
                     </div>
                   </td>
                   <td style={{ padding: '12px' }}>

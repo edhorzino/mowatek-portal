@@ -102,27 +102,14 @@ function EmployeeProfilePage({ user, employees }) {
 }
 
 function AppContent() {
-  const { user, logout } = useAuth()
+  const { user, profile, logout } = useAuth()
   const [activePage, setActivePage] = useState('dashboard')
   const [mobileOpen, setMobileOpen] = useState(false)
 
   const [employees, setEmployees] = useState([])
   const [loadingEmployees, setLoadingEmployees] = useState(true)
-  const [equipmentList, setEquipmentList] = useState([])
 
-  const userEmail = user?.email?.toLowerCase() || ''
-  
-  const adminEmails = [
-    'ewomazino.edhor@mowatek.com',
-    'enite.wekpe@mowatek.com',
-    'martha.obasi@mowatek.com'
-  ]
-
-  const isAdmin = 
-    adminEmails.includes(userEmail) || 
-    userEmail.includes('admin') || 
-    userEmail.includes('management') || 
-    userEmail.includes('hr')
+  const isAdmin = profile?.role === 'admin'
 
   useEffect(() => {
     async function fetchEmployees() {
@@ -270,7 +257,7 @@ function AppContent() {
   const renderPage = () => {
     switch (activePage) {
       case 'dashboard':
-        return <DashboardHome user={user} employees={employees} equipmentList={equipmentList} loadingEmployees={loadingEmployees} />
+        return <DashboardHome user={user} employees={employees} loadingEmployees={loadingEmployees} />
       case 'tasks':
         return <TasksPage user={user} />
       case 'profile':
@@ -286,13 +273,13 @@ function AppContent() {
           />
         )
       case 'equipment':
-        return <EquipmentPage equipmentList={equipmentList} setEquipmentList={setEquipmentList} />
+        return <EquipmentPage isAdmin={isAdmin} />
       case 'maintenance':
-        return <MaintenancePage />
+        return <MaintenancePage user={user} />
       case 'documents':
         return <DocumentsPage />
       default:
-        return <DashboardHome user={user} employees={employees} equipmentList={equipmentList} loadingEmployees={loadingEmployees} />
+        return <DashboardHome user={user} employees={employees} loadingEmployees={loadingEmployees} />
     }
   }
 

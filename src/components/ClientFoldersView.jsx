@@ -28,12 +28,12 @@ export function ClientFoldersView() {
   const filteredDocuments = documents.filter(doc => {
     const matchesSearch = 
       doc.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      doc.doc_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      doc.client?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (doc.document_code || doc.doc_number)?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (doc.client_name || doc.client)?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       doc.project?.toLowerCase().includes(searchQuery.toLowerCase())
 
     if (selectedClientFolder) {
-      return matchesSearch && doc.client?.toLowerCase() === selectedClientFolder.toLowerCase()
+      return matchesSearch && (doc.client_name || doc.client)?.toLowerCase() === selectedClientFolder.toLowerCase()
     }
     return matchesSearch
   })
@@ -86,7 +86,7 @@ export function ClientFoldersView() {
           <h3 style={{ fontSize: '15px', color: '#94a3b8', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Client Folders</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
             {clients.map(client => {
-              const count = documents.filter(d => d.client?.toLowerCase() === client.client_name.toLowerCase()).length
+              const count = documents.filter(d => (d.client_name || d.client)?.toLowerCase() === client.client_name.toLowerCase()).length
               return (
                 <div
                   key={client.id}
@@ -139,9 +139,9 @@ export function ClientFoldersView() {
               <tbody>
                 {filteredDocuments.map(doc => (
                   <tr key={doc.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                    <td style={{ padding: '12px', fontWeight: 600, color: '#06b6d4' }}>{doc.doc_number}</td>
+                    <td style={{ padding: '12px', fontWeight: 600, color: '#06b6d4' }}>{doc.document_code || doc.doc_number || '—'}</td>
                     <td style={{ padding: '12px', color: '#fff' }}>{doc.title}</td>
-                    <td style={{ padding: '12px', color: '#cbd5e1' }}>{doc.client || '—'}</td>
+                    <td style={{ padding: '12px', color: '#cbd5e1' }}>{doc.client_name || doc.client || '—'}</td>
                     <td style={{ padding: '12px', color: '#cbd5e1' }}>{doc.project || '—'}</td>
                     <td style={{ padding: '12px' }}>
                       <span style={{ padding: '4px 8px', borderRadius: '4px', background: 'rgba(59,130,246,0.15)', color: '#60a5fa', fontSize: '11px' }}>

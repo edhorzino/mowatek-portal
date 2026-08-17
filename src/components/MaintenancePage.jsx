@@ -1,220 +1,97 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 
-export function MaintenancePage() {
+const nextDateFor = (date, frequency) => {
+  const next = new Date(date)
+  const value = (frequency || 'MONTHLY').toUpperCase()
+  if (value === 'WEEKLY') next.setDate(next.getDate() + 7)
+  else if (value === 'BIWEEKLY') next.setDate(next.getDate() + 14)
+  else if (value === 'BIMONTHLY') next.setMonth(next.getMonth() + 2)
+  else if (value === 'QUARTERLY') next.setMonth(next.getMonth() + 3)
+  else if (value === 'ANNUALLY' || value === 'YEARLY') next.setFullYear(next.getFullYear() + 1)
+  else next.setMonth(next.getMonth() + 1)
+  return next.toISOString().split('T')[0]
+}
+
+export function MaintenancePage({ user }) {
   const [logs, setLogs] = useState([])
-  const [equipmentList, setEquipmentList] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [showCompleteModal, setShowCompleteModal] = useState(false)
-
-  // Form state for logging a completed maintenance action
-  const [selectedAsset, setSelectedAsset] = useState('')
-  const [maintenanceNotes, setMaintenanceNotes] = useState('')
+  const [equipment, setEquipment] = useState([])
+  const [showForm, setShowForm] = useState(false)
+  const [assetId, setAssetId] = useState('')
+  const [notes, setNotes] = useState('')
   const [performedBy, setPerformedBy] = useState('')
+  const [reportFile, setReportFile] = useState(null)
+  const [invoiceFile, setInvoiceFile] = useState(null)
+  const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    fetchMaintenanceLogs()
-    fetchEquipmentForDropdown()
-  }, [])
-
-  const fetchMaintenanceLogs = async () => {
-    setLoading(true)
-    try {
-      const { data, error } = await supabase
-        .from('maintenance_logs')
-        .select('*')
-        .order('completed_at', { ascending: false })
-
-      if (error) throw error
-      setLogs(data || [])
-    } catch (err) {
-      console.error('Error fetching maintenance logs:', err.message)
-    } finally {
-      setLoading(false)
-    }
+  const loadData = async () => {
+    const [logResult, equipmentResult] = await Promise.all([
+      supabase.from('maintenance_logs').select('*').order('completed_at', { ascending: false }),
+      supabase.from('equipment').select('*').order('client').order('asset_id'),
+    ])
+    if (logResult.error) console.error('Error loading maintenance history:', logResult.error.message)
+    if (equipmentResult.error) console.error('Error loading equipment:', equipmentResult.error.message)
+    setLogs(logResult.data || [])
+    setEquipment(equipmentResult.data || [])
   }
 
-  const fetchEquipmentForDropdown = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('equipment')
-        .select('*')
-      if (error) throw error
-      setEquipmentList(data || [])
-    } catch (err) {
-      console.error('Error fetching equipment list:', err.message)
-    }
+  useEffect(() => { loadData() }, [])
+
+  const upload = async (asset, file, type) => {
+    if (!file) return null
+    const extension = file.name.split('.').pop()
+    const path = `${asset.asset_id.replace(/[^a-zA-Z0-9_-]/g, '_')}/${Date.now()}-${type}.${extension}`
+    const { error } = await supabase.storage.from('maintenance-reports').upload(path, file)
+    if (error) throw error
+    return supabase.storage.from('maintenance-reports').getPublicUrl(path).data.publicUrl
   }
 
-  const handleLogMaintenance = async (e) => {
-    e.preventDefault()
-    if (!selectedAsset) {
-      alert('Please select an equipment asset.')
-      return
-    }
-
-    const assetObj = equipmentList.find(eq => eq.id === selectedAsset || eq.asset_id === selectedAsset)
-    const assetName = assetObj ? (assetObj.equipmentName || assetObj.name || assetObj.asset_id) : 'Unknown Asset'
-    const clientName = assetObj ? (assetObj.clientName || assetObj.client || 'Internal') : 'General'
-
-    const newLog = {
-      equipment_id: assetObj?.asset_id || selectedAsset,
-      asset_name: assetName,
-      client_name: clientName,
-      notes: maintenanceNotes || 'Routine scheduled service completed.',
-      performed_by: performedBy || 'Technician',
-      completed_at: new Date().toISOString()
-    }
-
+  const submit = async (event) => {
+    event.preventDefault()
+    const asset = equipment.find(item => String(item.id) === assetId)
+    if (!asset || !reportFile) return
+    setSaving(true)
     try {
-      const { data, error } = await supabase
-        .from('maintenance_logs')
-        .insert([newLog])
-        .select()
-
-      if (error) throw error
-
-      if (data && data.length > 0) {
-        setLogs([data[0], ...logs])
-      }
-      
-      // Reset form & close modal
-      setSelectedAsset('')
-      setMaintenanceNotes('')
-      setPerformedBy('')
-      setShowCompleteModal(false)
-      alert('Maintenance successfully logged and archived in history.')
-    } catch (err) {
-      console.error('Error saving maintenance log:', err.message)
-      alert('Failed to save log: ' + err.message)
-    }
+      const reportUrl = await upload(asset, reportFile, 'report')
+      const invoiceUrl = await upload(asset, invoiceFile, 'invoice')
+      const invoiceStatus = invoiceUrl ? 'UPLOADED' : 'PENDING'
+      const completedAt = new Date().toISOString()
+      const completedDate = completedAt.split('T')[0]
+      const { error: logError } = await supabase.from('maintenance_logs').insert([{
+        equipment_record_id: asset.id, equipment_id: asset.asset_id, asset_name: asset.equipment || asset.asset_id,
+        client_name: asset.client, notes: notes || 'Routine scheduled service completed.',
+        performed_by: performedBy || user?.email || 'Technician', completed_at: completedAt,
+        maintenance_report_url: reportUrl, invoice_url: invoiceUrl, invoice_status: invoiceStatus,
+      }])
+      if (logError) throw logError
+      const { error: equipmentError } = await supabase.from('equipment').update({
+        last_maintenance: completedDate, next_maintenance: nextDateFor(completedDate, asset.maintenance_frequency),
+        maintenance_report_url: reportUrl, invoice_url: invoiceUrl, invoice_status: invoiceStatus, invoice_cashed: false,
+      }).eq('id', asset.id)
+      if (equipmentError) throw equipmentError
+      setAssetId(''); setNotes(''); setPerformedBy(''); setReportFile(null); setInvoiceFile(null); setShowForm(false)
+      await loadData()
+      alert('Maintenance has been completed and added to the history log.')
+    } catch (error) {
+      alert(`Unable to complete maintenance: ${error.message}`)
+    } finally { setSaving(false) }
   }
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
-      {/* Header section */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-        <div>
-          <span className="page-eyebrow">MOWATEK INTERNAL SYSTEM</span>
-          <h1 style={{ fontSize: '28px', fontWeight: 800, margin: '4px 0 8px 0', color: '#fff' }}>
-            Maintenance Log
-          </h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: 0 }}>
-            Track completed equipment servicing, timestamps, client assets, and historical maintenance logs.
-          </p>
-        </div>
-        <button className="btn-primary" onClick={() => setShowCompleteModal(!showCompleteModal)}>
-          {showCompleteModal ? 'Cancel' : '+ Log Completed Maintenance'}
-        </button>
-      </div>
-
-      {/* Modal for Logging Maintenance Done */}
-      {showCompleteModal && (
-        <div className="content-card" style={{ background: 'rgba(15, 23, 42, 0.95)', border: '1px solid rgba(255,255,255,0.1)', padding: '24px' }}>
-          <h3 style={{ margin: '0 0 16px 0', color: '#fff' }}>Record Completed Maintenance</h3>
-          <form onSubmit={handleLogMaintenance} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Select Equipment Asset *</label>
-              <select 
-                value={selectedAsset} 
-                onChange={(e) => setSelectedAsset(e.target.value)}
-                style={{ width: '100%', padding: '10px', background: '#020617', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', color: '#fff' }}
-                required
-              >
-                <option value="">-- Choose asset from registry --</option>
-                {equipmentList.map((eq) => (
-                  <option key={eq.id} value={eq.id}>
-                    {eq.asset_id || eq.id} — {eq.equipmentName || eq.name} ({eq.clientName || eq.client || 'No client'})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Technician / Performed By</label>
-              <input 
-                type="text" 
-                value={performedBy} 
-                onChange={(e) => setPerformedBy(e.target.value)} 
-                placeholder="e.g. John Doe"
-                style={{ width: '100%', padding: '10px', background: '#020617', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', color: '#fff' }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Service Notes & Actions Performed</label>
-              <textarea 
-                value={maintenanceNotes} 
-                onChange={(e) => setMaintenanceNotes(e.target.value)} 
-                placeholder="Describe parts replaced, diagnostics run, or service details..."
-                rows="3"
-                style={{ width: '100%', padding: '10px', background: '#020617', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', color: '#fff' }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button type="button" onClick={() => setShowCompleteModal(false)} style={{ padding: '8px 16px', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: '6px', cursor: 'pointer' }}>
-                Cancel
-              </button>
-              <button type="submit" className="btn-primary" style={{ padding: '8px 16px' }}>
-                Save to History Log
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* History Log Display */}
-      {loading ? (
-        <div className="content-card" style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
-          Loading maintenance history...
-        </div>
-      ) : logs.length === 0 ? (
-        <div className="content-card" style={{ padding: '30px', textAlign: 'center' }}>
-          <span style={{ fontSize: '36px' }}>🔧</span>
-          <h3 style={{ color: '#fff', margin: '12px 0 6px 0' }}>No Maintenance Logs Recorded Yet</h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>
-            Click "+ Log Completed Maintenance" above to record completed servicing history.
-          </p>
-        </div>
-      ) : (
-        <div className="content-card" style={{ padding: 0, overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.2)', color: 'var(--text-muted)' }}>
-                <th style={{ padding: '14px 16px' }}>Timestamp</th>
-                <th style={{ padding: '14px 16px' }}>Asset ID & Name</th>
-                <th style={{ padding: '14px 16px' }}>Client</th>
-                <th style={{ padding: '14px 16px' }}>Service Notes</th>
-                <th style={{ padding: '14px 16px' }}>Performed By</th>
-              </tr>
-            </thead>
-            <tbody>
-              {logs.map((log) => (
-                <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                  <td style={{ padding: '14px 16px', color: '#38bdf8', whiteSpace: 'nowrap' }}>
-                    {new Date(log.completed_at).toLocaleString()}
-                  </td>
-                  <td style={{ padding: '14px 16px', color: '#fff', fontWeight: 600 }}>
-                    {log.equipment_id} <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>({log.asset_name})</span>
-                  </td>
-                  <td style={{ padding: '14px 16px', color: '#e2e8f0' }}>
-                    {log.client_name}
-                  </td>
-                  <td style={{ padding: '14px 16px', color: '#cbd5e1', maxWidth: '300px' }}>
-                    {log.notes}
-                  </td>
-                  <td style={{ padding: '14px 16px', color: '#10b981', fontWeight: 500 }}>
-                    {log.performed_by}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+  return <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+      <div><span className="page-eyebrow">OPERATIONS HISTORY</span><h1 style={{ fontSize: '28px', fontWeight: 800, margin: '4px 0 8px', color: '#fff' }}>Maintenance Log</h1><p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: 0 }}>Completed maintenance is recorded here with its required report.</p></div>
+      <button className="btn-primary" onClick={() => setShowForm(value => !value)}>{showForm ? 'Cancel' : '+ Complete Maintenance'}</button>
     </div>
-  )
+    {showForm && <form onSubmit={submit} className="content-card" style={{ display: 'grid', gap: '14px', maxWidth: '720px' }}>
+      <select required value={assetId} onChange={e => setAssetId(e.target.value)} style={{ padding: '10px', background: '#020617', color: '#fff', borderRadius: '6px' }}><option value="">Select an asset</option>{equipment.map(item => <option key={item.id} value={item.id}>{item.client} — {item.asset_id} ({item.equipment || 'Equipment'})</option>)}</select>
+      <input value={performedBy} onChange={e => setPerformedBy(e.target.value)} placeholder="Technician / performed by" style={{ padding: '10px', background: '#020617', color: '#fff', borderRadius: '6px' }} />
+      <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Service notes and work performed" rows="3" style={{ padding: '10px', background: '#020617', color: '#fff', borderRadius: '6px' }} />
+      <label style={{ color: '#38bdf8', fontSize: '13px' }}>Maintenance report (required) <input required type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onChange={e => setReportFile(e.target.files[0])} /></label>
+      <label style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Invoice (optional) <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onChange={e => setInvoiceFile(e.target.files[0])} /></label>
+      <button className="btn-primary" disabled={saving} type="submit">{saving ? 'Saving maintenance…' : 'Complete & add to history'}</button>
+    </form>}
+    <div className="content-card" style={{ padding: 0, overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}><thead><tr style={{ color: 'var(--text-muted)', textAlign: 'left' }}><th style={{ padding: '14px' }}>Completed</th><th style={{ padding: '14px' }}>Asset</th><th style={{ padding: '14px' }}>Client</th><th style={{ padding: '14px' }}>Report</th><th style={{ padding: '14px' }}>Invoice</th><th style={{ padding: '14px' }}>Performed by</th></tr></thead><tbody>{logs.length ? logs.map(log => <tr key={log.id} style={{ borderTop: '1px solid rgba(255,255,255,.08)' }}><td style={{ padding: '14px' }}>{new Date(log.completed_at).toLocaleString()}</td><td style={{ padding: '14px', color: '#fff' }}>{log.equipment_id}<div style={{ color: 'var(--text-muted)' }}>{log.asset_name}</div></td><td style={{ padding: '14px' }}>{log.client_name}</td><td style={{ padding: '14px' }}>{log.maintenance_report_url ? <a href={log.maintenance_report_url} target="_blank" rel="noreferrer">View report</a> : '—'}</td><td style={{ padding: '14px' }}>{log.invoice_url ? <a href={log.invoice_url} target="_blank" rel="noreferrer">View invoice</a> : 'Pending'}</td><td style={{ padding: '14px' }}>{log.performed_by}</td></tr>) : <tr><td colSpan="6" style={{ padding: '28px', textAlign: 'center', color: 'var(--text-muted)' }}>No maintenance history yet.</td></tr>}</tbody></table></div>
+  </div>
 }
 
 export default MaintenancePage

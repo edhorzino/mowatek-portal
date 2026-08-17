@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { EquipmentTable } from './EquipmentTable'
 import { AddEquipmentModal } from './AddEquipmentModal'
 import { supabase } from '../supabaseClient'
+import { useAuth } from '../context/AuthContext'
 
 // --- PageHeader Helper Component ---
 function PageHeader({ eyebrow, title, description, action }) {
@@ -17,13 +18,15 @@ function PageHeader({ eyebrow, title, description, action }) {
   )
 }
 
-export function EquipmentPage() {
+export function EquipmentPage({ isAdmin = false }) {
+  const { user } = useAuth()
   const [equipmentList, setEquipmentList] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
   
   // State for Equipment Detail & Vault History Modal
   const [selectedAssetHistory, setSelectedAssetHistory] = useState(null)
+  const [assetLogs, setAssetLogs] = useState([])
   const [uploadingReport, setUploadingReport] = useState(false)
 
   // Fetch equipment records from Supabase on load
@@ -75,6 +78,56 @@ export function EquipmentPage() {
         setSelectedAssetHistory(prev => ({ ...prev, ...updatedFields }))
       }
     }
+  }
+
+  const uploadMaintenanceFile = async (assetId, file, type) => {
+    if (!file) return null
+    const extension = file.name.split('.').pop()
+    const safeAsset = String(assetId).replace(/[^a-zA-Z0-9_-]/g, '_')
+    const path = `${safeAsset}/${Date.now()}-${type}.${extension}`
+    const { error } = await supabase.storage.from('maintenance-reports').upload(path, file)
+    if (error) throw error
+    return supabase.storage.from('maintenance-reports').getPublicUrl(path).data.publicUrl
+  }
+
+  const handleCompleteMaintenance = async (asset, { reportFile, invoiceFile, completedDate, nextMaintenanceDate }) => {
+    const reportUrl = await uploadMaintenanceFile(asset.asset_id, reportFile, 'report')
+    const invoiceUrl = await uploadMaintenanceFile(asset.asset_id, invoiceFile, 'invoice')
+    const invoiceStatus = invoiceUrl ? 'UPLOADED' : 'PENDING'
+
+    const { error: logError } = await supabase.from('maintenance_logs').insert([{
+      equipment_record_id: asset.id,
+      equipment_id: asset.asset_id,
+      asset_name: asset.equipment || asset.asset_id,
+      client_name: asset.client,
+      notes: 'Maintenance completed from the equipment registry.',
+      performed_by: user?.email || 'Technician',
+      completed_at: new Date(`${completedDate}T12:00:00`).toISOString(),
+      maintenance_report_url: reportUrl,
+      invoice_url: invoiceUrl,
+      invoice_status: invoiceStatus,
+    }])
+    if (logError) throw logError
+
+    await handleUpdate(asset.id, {
+      last_maintenance: completedDate,
+      next_maintenance: nextMaintenanceDate,
+      maintenance_report_url: reportUrl,
+      invoice_url: invoiceUrl,
+      invoice_status: invoiceStatus,
+      invoice_cashed: false,
+    })
+  }
+
+  const openAssetHistory = async (asset) => {
+    setSelectedAssetHistory(asset)
+    const { data, error } = await supabase
+      .from('maintenance_logs')
+      .select('*')
+      .eq('equipment_record_id', asset.id)
+      .order('completed_at', { ascending: false })
+    if (error) console.error('Error loading asset history:', error.message)
+    setAssetLogs(data || [])
   }
 
   const handleDelete = async (id) => {
@@ -152,9 +205,11 @@ export function EquipmentPage() {
         ) : (
           <EquipmentTable
             equipmentList={equipmentList}
+            isAdmin={isAdmin}
             onUpdate={handleUpdate}
             onDelete={handleDelete}
-            onSelectAsset={(asset) => setSelectedAssetHistory(asset)}
+            onSelectAsset={openAssetHistory}
+            onCompleteMaintenance={handleCompleteMaintenance}
           />
         )}
       </section>
@@ -183,22 +238,12 @@ export function EquipmentPage() {
             
             {/* Historical Report Logs */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
-              <div style={{ background: 'rgba(15, 23, 42, 0.9)', padding: '10px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
-                <div>
-                  <div style={{ color: '#fff', fontWeight: 600 }}>Last Service Date: {selectedAssetHistory.last_maintenance || 'None logged'}</div>
-                  <div style={{ color: '#94a3b8' }}>Report File: {selectedAssetHistory.maintenance_report_url ? 'Attached in Vault' : 'No document uploaded'}</div>
+              {assetLogs.length === 0 ? <div style={{ color: '#94a3b8', fontSize: '12px' }}>No completed maintenance reports recorded yet.</div> : assetLogs.map(log => (
+                <div key={log.id} style={{ background: 'rgba(15, 23, 42, 0.9)', padding: '10px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', gap: '10px' }}>
+                  <div><div style={{ color: '#fff', fontWeight: 600 }}>{new Date(log.completed_at).toLocaleDateString()} — {log.performed_by}</div><div style={{ color: '#94a3b8' }}>{log.notes}</div></div>
+                  {log.maintenance_report_url && <a href={log.maintenance_report_url} target="_blank" rel="noopener noreferrer" style={{ background: '#0284c7', color: '#fff', padding: '4px 8px', borderRadius: '4px', textDecoration: 'none', fontWeight: 600 }}>View Report</a>}
                 </div>
-                {selectedAssetHistory.maintenance_report_url && (
-                  <a 
-                    href={selectedAssetHistory.maintenance_report_url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    style={{ background: '#0284c7', color: '#fff', padding: '4px 8px', borderRadius: '4px', textDecoration: 'none', fontWeight: 600 }}
-                  >
-                    View Report
-                  </a>
-                )}
-              </div>
+              ))}
             </div>
 
             {/* Direct Vault Upload Option */}
