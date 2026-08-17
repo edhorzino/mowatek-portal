@@ -10,6 +10,24 @@ import { TasksPage } from './components/TasksPage'
 import { supabase } from './lib/supabase'
 import "./App.css";
 
+const navigationIconPaths = {
+  dashboard: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
+  profile: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
+  tasks: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  equipment: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.12 2.12-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.04 1.56V20.5h-3v-.28A1.7 1.7 0 0 0 10.66 18.7a1.7 1.7 0 0 0-1.88.34l-.06.06L6.6 16.98l.06-.06A1.7 1.7 0 0 0 7 15.04a1.7 1.7 0 0 0-1.56-1.04H5.16v-3h.28A1.7 1.7 0 0 0 7 9.96a1.7 1.7 0 0 0-.34-1.88L6.6 8.02 8.72 5.9l.06.06a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.04-1.56V4.46h3v.28a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.12 2.12-.06.06A1.7 1.7 0 0 0 19.4 9.96a1.7 1.7 0 0 0 1.56 1.04h.28v3h-.28A1.7 1.7 0 0 0 19.4 15Z" /></>,
+  documents: <><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v5h5M9 13h6M9 17h6" /></>,
+  maintenance: <path d="m14.7 6.3 3-3a5 5 0 0 1-6.3 6.3L5 16a2.1 2.1 0 0 0 3 3l6.4-6.4a5 5 0 0 1 6.3-6.3l-3 3" />,
+  employees: <><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2.5" /><path d="M3.5 20a5.5 5.5 0 0 1 11 0M14 20a4 4 0 0 1 6.5-3.1" /></>,
+}
+
+function NavigationIcon({ name }) {
+  return (
+    <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {navigationIconPaths[name]}
+    </svg>
+  )
+}
+
 // Global error handler to suppress harmless browser extension promise rejections (like MetaMask/Web3 ports)
 window.addEventListener('unhandledrejection', (event) => {
   if (
@@ -318,14 +336,16 @@ function AppContent() {
               className={`nav-item ${activePage === 'dashboard' ? 'active' : ''}`}
               onClick={() => handleNavClick('dashboard')}
             >
-              📊 Dashboard
+              <NavigationIcon name="dashboard" />
+              Dashboard
             </button>
 
             <button
               className={`nav-item ${activePage === 'profile' ? 'active' : ''}`}
               onClick={() => handleNavClick('profile')}
             >
-              🪪 My Profile
+              <NavigationIcon name="profile" />
+              My Profile
             </button>
 
             <div className="nav-section-title" style={{ marginTop: '16px' }}>Operations</div>
@@ -334,28 +354,32 @@ function AppContent() {
               className={`nav-item ${activePage === 'tasks' ? 'active' : ''}`}
               onClick={() => handleNavClick('tasks')}
             >
-              ⏰ Tasks & Reminders
+              <NavigationIcon name="tasks" />
+              Tasks & Reminders
             </button>
             
             <button
               className={`nav-item ${activePage === 'equipment' ? 'active' : ''}`}
               onClick={() => handleNavClick('equipment')}
             >
-              ⚙️ Equipment
+              <NavigationIcon name="equipment" />
+              Equipment
             </button>
             
             <button
               className={`nav-item ${activePage === 'documents' ? 'active' : ''}`}
               onClick={() => handleNavClick('documents')}
             >
-              📄 Documents
+              <NavigationIcon name="documents" />
+              Documents
             </button>
 
             <button
               className={`nav-item ${activePage === 'maintenance' ? 'active' : ''}`}
               onClick={() => handleNavClick('maintenance')}
             >
-              🔧 Maintenance
+              <NavigationIcon name="maintenance" />
+              Maintenance
             </button>
 
             {isAdmin && (
@@ -365,7 +389,8 @@ function AppContent() {
                   className={`nav-item ${activePage === 'employees' ? 'active' : ''}`}
                   onClick={() => handleNavClick('employees')}
                 >
-                  👥 Employees
+                  <NavigationIcon name="employees" />
+                  Employees
                 </button>
               </>
             )}
