@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 
+function getFirstName(value) {
+  const name = String(value || '').trim()
+  if (!name) return 'User'
+
+  const firstPart = name.split(/[\s._-]+/)[0]
+  return firstPart.charAt(0).toUpperCase() + firstPart.slice(1).toLowerCase()
+}
+
 export function useEmployeeProfile() {
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -25,21 +33,21 @@ export function useEmployeeProfile() {
 
         if (dbError || !employeeData) {
           // Fallback if no specific employee record is found yet
-          const fallbackName = user.email.split('@')[0].replace('.', ' ')
+          const fallbackName = user.email.split('@')[0]
           setProfile({
             fullName: fallbackName,
-            firstName: fallbackName.split(' ')[0],
+            firstName: getFirstName(fallbackName),
             email: user.email,
           })
         } else {
-          // Extract first name dynamically from the employee record's name field
-          const fullName = employeeData.name || employeeData.full_name || user.email
-          const firstName = fullName.trim().split(' ')[0]
+          // Prefer the structured employee name fields, then safely fall back to the email prefix.
+          const fullName = employeeData.name || employeeData.full_name || [employeeData.first_name, employeeData.middle_name, employeeData.last_name].filter(Boolean).join(' ') || user.email
+          const firstName = employeeData.first_name || employeeData.firstName || fullName
 
           setProfile({
             ...employeeData,
             fullName,
-            firstName: firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase(),
+            firstName: getFirstName(firstName),
             email: user.email,
           })
         }

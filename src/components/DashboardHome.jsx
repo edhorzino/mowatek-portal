@@ -95,7 +95,6 @@ export function DashboardHome({ employees = [] }) {
   const totalDocs = documents.length
   const totalActiveLogins = activeSessions.length
   const displayName = profileLoading ? '...' : (profile?.firstName || 'User')
-  const displayEmail = profile?.email || 'ewomazino.edhor@mowatek.com'
 
   return (
     <>
@@ -126,11 +125,11 @@ export function DashboardHome({ employees = [] }) {
         {/* Header */}
         <div>
           <span className="page-eyebrow">MOWATEK INTERNAL SYSTEM</span>
-          <h1 style={{ fontSize: '28px', fontWeight: 800, margin: '4px 0 8px 0', color: '#fff', wordBreak: 'break-word' }}>
-            Dashboard
+          <h1 style={{ fontSize: 'clamp(30px, 4vw, 42px)', fontWeight: 800, margin: '4px 0 8px 0', color: '#fff', wordBreak: 'break-word', letterSpacing: '-0.03em' }}>
+            Welcome back, <span style={{ color: 'var(--accent-cyan)' }}>{displayName}</span>
           </h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: 0, wordBreak: 'break-word' }}>
-            Welcome back, {displayName}. Here's your operational overview. ({displayEmail})
+            Here&apos;s your operational overview.
           </p>
         </div>
 
