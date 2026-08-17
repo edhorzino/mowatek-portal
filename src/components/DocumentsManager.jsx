@@ -146,6 +146,12 @@ export function DocumentsManager() {
 
       const { error: dbError } = await supabase.from('documents').insert([
         {
+          // Legacy fields remain required by the existing documents table.
+          doc_number: generatedCode,
+          doc_type: category,
+          client: targetClient,
+          access: accessLevel,
+          file_name: fileName,
           document_code: generatedCode,
           title,
           client_name: targetClient,
