@@ -10,7 +10,7 @@ export function DocumentsManager() {
   const [documents, setDocuments] = useState([])
   const [clients, setClients] = useState([])
   
-  // Navigation views: 'recent', 'folders', 'search', 'upload'
+  // Navigation views: 'recent', 'folders', 'search', 'upload', 'admin'
   const [activeTab, setActiveTab] = useState('recent')
   
   // Folder navigation state inside 'folders' view
@@ -29,18 +29,57 @@ export function DocumentsManager() {
   // Mass Upload Modal State
   const [isMassUploadOpen, setIsMassUploadOpen] = useState(false)
 
-  // Form State
+  // Upload Form & Codebook State
   const [title, setTitle] = useState('')
   const [selectedClient, setSelectedClient] = useState('')
   const [newClientInput, setNewClientInput] = useState('')
   const [isAddingNewClient, setIsAddingNewClient] = useState(false)
   const [isInternal, setIsInternal] = useState(false)
-  const [category, setCategory] = useState('Quotation')
+  const [category, setCategory] = useState('TECH') // Category serves as Document Type code for MWT
+  const [documentYear, setDocumentYear] = useState(new Date().getFullYear().toString())
+  const [serialNumber, setSerialNumber] = useState('001')
+  const [generatedCode, setGeneratedCode] = useState('')
   const [file, setFile] = useState(null)
 
   useEffect(() => {
     fetchData()
   }, [])
+
+  // Automatically compute and generate document code: MWT-[DocType]-[Year]-[Serial]
+  useEffect(() => {
+    const fetchNextSerialAndGenerateCode = async () => {
+      try {
+        const prefix = `MWT-${category}-${documentYear}`
+        
+        // Query database to get the latest sequence serial number for this type and year
+        const { data, error } = await supabase
+          .from('documents')
+          .select('serial_number')
+          .ilike('document_code', `${prefix}%`)
+          .order('created_at', { ascending: false })
+          .limit(1)
+
+        let nextNum = 1
+        if (data && data.length > 0 && data[0].serial_number) {
+          const parsed = parseInt(data[0].serial_number, 10)
+          if (!isNaN(parsed)) {
+            nextNum = parsed + 1
+          }
+        }
+
+        const paddedSerial = String(nextNum).padStart(3, '0')
+        setSerialNumber(paddedSerial)
+        setGeneratedCode(`${prefix}-${paddedSerial}`)
+      } catch (err) {
+        console.error('Error fetching serial number sequence:', err)
+        const fallbackSerial = '001'
+        setSerialNumber(fallbackSerial)
+        setGeneratedCode(`MWT-${category}-${documentYear}-${fallbackSerial}`)
+      }
+    }
+
+    fetchNextSerialAndGenerateCode()
+  }, [category, documentYear])
 
   const fetchData = async () => {
     setLoading(true)
@@ -90,7 +129,7 @@ export function DocumentsManager() {
     setUploading(true)
     try {
       const fileExt = file.name.split('.').pop()
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`
+      const fileName = `${generatedCode}_${Date.now()}.${fileExt}`
       const folderSlug = isInternal ? 'internal_documents' : targetClient.toLowerCase().replace(/\s+/g, '_')
       const filePath = `${folderSlug}/${fileName}`
 
@@ -105,12 +144,15 @@ export function DocumentsManager() {
         .from('mowatek-documents')
         .getPublicUrl(filePath)
 
-      // 2. Save metadata to database table
+      // 2. Save metadata & MWT codebook identifiers to database table
       const { error: dbError } = await supabase.from('documents').insert([
         {
+          document_code: generatedCode,
           title,
           client_name: targetClient,
           category,
+          year: documentYear,
+          serial_number: serialNumber,
           file_url: publicURLData.publicUrl,
           file_path: filePath,
           file_size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
@@ -120,7 +162,7 @@ export function DocumentsManager() {
 
       if (dbError) throw dbError
 
-      alert('Document uploaded successfully to database & storage!')
+      alert(`Document successfully registered and uploaded under code: ${generatedCode}`)
       setTitle('')
       setFile(null)
       setSelectedClient('')
@@ -142,7 +184,8 @@ export function DocumentsManager() {
   const searchFilteredDocs = documents.filter(doc => {
     const matchesQuery = doc.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          doc.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         doc.category.toLowerCase().includes(searchQuery.toLowerCase())
+                         doc.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         (doc.document_code && doc.document_code.toLowerCase().includes(searchQuery.toLowerCase()))
     const matchesClient = filterClient === 'ALL' || doc.client_name === filterClient
     const matchesCategory = filterCategory === 'ALL' || doc.category === filterCategory
     return matchesQuery && matchesClient && matchesCategory
@@ -154,7 +197,8 @@ export function DocumentsManager() {
     return docsList.filter(doc => 
       doc.title.toLowerCase().includes(folderSearchQuery.toLowerCase()) ||
       doc.client_name.toLowerCase().includes(folderSearchQuery.toLowerCase()) ||
-      doc.category.toLowerCase().includes(folderSearchQuery.toLowerCase())
+      doc.category.toLowerCase().includes(folderSearchQuery.toLowerCase()) ||
+      (doc.document_code && doc.document_code.toLowerCase().includes(folderSearchQuery.toLowerCase()))
     )
   }
 
@@ -178,8 +222,8 @@ export function DocumentsManager() {
       {/* Top Navigation Header & Action Bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '750' }}>📁 Document Vault & Control Directory</h2>
-          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>Manage, categorize, and search through controlled company records and client files.</p>
+          <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '750' }}>📁 Document Vault & MWT Codebook Directory</h2>
+          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>Manage, categorize, and search through controlled company records with automated MWT coding.</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button 
@@ -216,6 +260,12 @@ export function DocumentsManager() {
           style={tabButtonStyle(activeTab === 'upload', true)}
         >
           + Register & Upload Document
+        </button>
+        <button 
+          onClick={() => { setActiveTab('admin'); setSelectedFolderType(null); }}
+          style={tabButtonStyle(activeTab === 'admin')}
+        >
+          ⚙️ Admin Panel
         </button>
       </div>
 
@@ -298,19 +348,19 @@ export function DocumentsManager() {
       {/* VIEW 3: ADMIN ACCESS CONTROL */}
       {activeTab === 'admin' && <AdminPanel />}
 
-      {/* VIEW 3 (Alternate): ADVANCED SEARCH & FILTERS */}
+      {/* VIEW 4: ADVANCED SEARCH & FILTERS */}
       {activeTab === 'search' && (
         <div>
           <div style={{ marginBottom: '16px' }}>
             <h3 style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>Advanced Search & Filters</h3>
-            <p style={{ fontSize: '12px', color: '#94a3b8', margin: '2px 0 0 0' }}>Filter documents precisely by keyword, client vault, or category.</p>
+            <p style={{ fontSize: '12px', color: '#94a3b8', margin: '2px 0 0 0' }}>Filter documents precisely by keyword, MWT code, client vault, or category.</p>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px 220px', gap: '16px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)', marginBottom: '20px' }}>
             <input 
               type="text" 
               value={searchQuery} 
               onChange={(e) => setSearchQuery(e.target.value)} 
-              placeholder="🔍 Search by title, project, or keyword..." 
+              placeholder="🔍 Search by title, MWT code, or keyword..." 
               style={{ padding: '12px 16px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', fontSize: '14px', outline: 'none' }}
             />
             <select 
@@ -328,30 +378,31 @@ export function DocumentsManager() {
               style={{ padding: '12px 16px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', fontSize: '14px', outline: 'none' }}
             >
               <option value="ALL">All Document Types</option>
-              <option value="Quotation">Quotation</option>
-              <option value="Invoice">Invoice</option>
-              <option value="Technical Report">Technical Report</option>
-              <option value="Tender Spec">Tender Spec</option>
-              <option value="Contract">Contract</option>
+              <option value="TECH">TECH - Technical Specifications</option>
+              <option value="COMM">COMM - Commercial & Tenders</option>
+              <option value="CORP">CORP - Corporate Records</option>
+              <option value="DRW">DRW - Engineering Drawings</option>
+              <option value="RPT">RPT - Reports & Audits</option>
             </select>
           </div>
           <DocumentTable docs={searchFilteredDocs} loading={loading} />
         </div>
       )}
 
-      {/* VIEW 4: UPLOAD FORM */}
+      {/* VIEW 5: REGISTER & UPLOAD FORM WITH AUTOMATED MWT CODEBOOK */}
       {activeTab === 'upload' && (
-        <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '28px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)', maxWidth: '600px', margin: '0 auto' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px' }}>Register & Upload New Document</h3>
+        <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '28px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)', maxWidth: '650px', margin: '0 auto' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '6px' }}>Register & Upload New Document</h3>
+          <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '20px' }}>Automatically generates the official MWT structured file code upon classification.</p>
           
           <form onSubmit={handleUpload} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Document Title / Project</label>
+              <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Document Title / Project Description</label>
               <input 
                 type="text" 
                 value={title} 
                 onChange={(e) => setTitle(e.target.value)} 
-                placeholder="e.g., Pump Spare Quotation_v02" 
+                placeholder="e.g., Mechanical Toolbox Procurement Tender" 
                 required
                 style={{ width: '100%', padding: '12px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
               />
@@ -393,7 +444,7 @@ export function DocumentsManager() {
                         type="text" 
                         value={newClientInput} 
                         onChange={(e) => setNewClientInput(e.target.value)} 
-                        placeholder="Enter new client name (e.g. Chevron)..." 
+                        placeholder="Enter new client name (e.g. Heritage Energy)..." 
                         style={{ width: '100%', padding: '12px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', fontSize: '14px', outline: 'none' }}
                       />
                       <button 
@@ -416,19 +467,41 @@ export function DocumentsManager() {
               )}
             </div>
 
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Document Type Code</label>
+                <select 
+                  value={category} 
+                  onChange={(e) => setCategory(e.target.value)}
+                  style={{ width: '100%', padding: '12px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', fontSize: '14px', outline: 'none' }}
+                >
+                  <option value="TECH">TECH - Technical Specifications</option>
+                  <option value="COMM">COMM - Commercial & Tenders</option>
+                  <option value="CORP">CORP - Corporate Records</option>
+                  <option value="DRW">DRW - Engineering Drawings</option>
+                  <option value="RPT">RPT - Reports & Audits</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Year</label>
+                <input 
+                  type="text" 
+                  value={documentYear} 
+                  onChange={(e) => setDocumentYear(e.target.value)} 
+                  maxLength={4}
+                  required
+                  style={{ width: '100%', padding: '12px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+            </div>
+
+            {/* Generated Code Preview Box */}
             <div>
-              <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Document Type / Category</label>
-              <select 
-                value={category} 
-                onChange={(e) => setCategory(e.target.value)}
-                style={{ width: '100%', padding: '12px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', fontSize: '14px', outline: 'none' }}
-              >
-                <option value="Quotation">Quotation</option>
-                <option value="Invoice">Invoice</option>
-                <option value="Technical Report">Technical Report</option>
-                <option value="Tender Spec">Tender Spec</option>
-                <option value="Contract">Contract</option>
-              </select>
+              <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Generated MWT Document Code (Auto-Sequenced)</label>
+              <div style={{ width: '100%', background: 'rgba(6, 182, 212, 0.08)', border: '1px solid rgba(6, 182, 212, 0.4)', borderRadius: '8px', padding: '12px 14px', fontFamily: 'monospace', color: '#06b6d4', fontWeight: 'bold', fontSize: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box' }}>
+                <span>{generatedCode}</span>
+                <span style={{ fontSize: '11px', background: 'rgba(6, 182, 212, 0.2)', padding: '2px 8px', borderRadius: '4px' }}>Serial: {serialNumber}</span>
+              </div>
             </div>
 
             <div>
@@ -437,7 +510,7 @@ export function DocumentsManager() {
             </div>
 
             <button type="submit" disabled={uploading} style={{ background: '#3b82f6', border: 'none', color: '#fff', padding: '12px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', marginTop: '8px', fontSize: '14px' }}>
-              {uploading ? 'Uploading to Database & Storage...' : 'Upload Document'}
+              {uploading ? 'Registering Code & Uploading...' : 'Register & Upload Document'}
             </button>
           </form>
         </div>
@@ -459,7 +532,7 @@ export function DocumentsManager() {
   )
 }
 
-// Reusable Table Subcomponent with Modern Styling
+// Reusable Table Subcomponent with Modern Styling & MWT Code display
 function DocumentTable({ docs, loading }) {
   if (loading) return <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>Loading vault documents...</div>
   if (docs.length === 0) return <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>No documents found matching your criteria.</div>
@@ -469,19 +542,20 @@ function DocumentTable({ docs, loading }) {
       <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
         <thead>
           <tr style={{ background: 'rgba(255,255,255,0.04)', color: '#94a3b8', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+            <th style={{ padding: '14px 16px' }}>MWT Code</th>
             <th style={{ padding: '14px 16px' }}>Document Title / Project</th>
             <th style={{ padding: '14px 16px' }}>Client / Vault</th>
             <th style={{ padding: '14px 16px' }}>Type</th>
             <th style={{ padding: '14px 16px' }}>Uploaded Date</th>
-            <th style={{ padding: '14px 16px' }}>Uploaded By</th>
             <th style={{ padding: '14px 16px', textAlign: 'right' }}>Actions</th>
           </tr>
         </thead>
         <tbody>
           {docs.map((doc) => (
             <tr key={doc.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <td style={{ padding: '14px 16px', fontFamily: 'monospace', color: '#06b6d4', fontWeight: '600' }}>{doc.document_code || '—'}</td>
               <td style={{ padding: '14px 16px', fontWeight: '600', color: '#fff' }}>{doc.title}</td>
-              <td style={{ padding: '16px', color: '#06b6d4', fontWeight: '500' }}>📁 {doc.client_name}</td>
+              <td style={{ padding: '16px', color: '#38bdf8', fontWeight: '500' }}>📁 {doc.client_name}</td>
               <td style={{ padding: '14px 16px' }}>
                 <span style={{ padding: '4px 10px', background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', borderRadius: '20px', fontSize: '11px', fontWeight: '600' }}>
                   {doc.category || 'General'}
@@ -490,7 +564,6 @@ function DocumentTable({ docs, loading }) {
               <td style={{ padding: '14px 16px', color: '#94a3b8' }}>
                 {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : '—'}
               </td>
-              <td style={{ padding: '14px 16px', color: '#94a3b8' }}>{doc.uploaded_by || '—'}</td>
               <td style={{ padding: '14px 16px', textAlign: 'right' }}>
                 <a 
                   href={doc.file_url} 
