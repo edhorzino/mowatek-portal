@@ -17,7 +17,7 @@ export function DocumentsManager() {
   const [selectedFolderType, setSelectedFolderType] = useState(null) // 'INTERNAL' or 'CLIENTS'
   const [selectedClientFolder, setSelectedClientFolder] = useState(null) // e.g. 'Dangote', 'NOV'
 
-  // Filter & Search states (Global search added to folders and search tab)
+  // Filter & Search states
   const [folderSearchQuery, setFolderSearchQuery] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [filterClient, setFilterClient] = useState('ALL')
@@ -158,49 +158,74 @@ export function DocumentsManager() {
     )
   }
 
+  const tabButtonStyle = (isActive, isSpecial = false) => ({
+    background: isActive 
+      ? (isSpecial ? '#06b6d4' : '#3b82f6') 
+      : 'rgba(255,255,255,0.03)',
+    color: '#fff',
+    border: '1px solid rgba(255,255,255,0.08)',
+    padding: '10px 18px',
+    borderRadius: '8px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    fontSize: '13px',
+    transition: 'all 0.2s ease'
+  })
+
   return (
-    <div style={{ padding: '32px', color: '#fff', fontFamily: 'system-ui, sans-serif', maxWidth: '1300px', margin: '0 auto' }}>
+    <div style={{ padding: '32px', color: '#fff', fontFamily: 'Inter, system-ui, sans-serif', maxWidth: '1300px', margin: '0 auto', background: '#090d16', minHeight: '100vh', boxSizing: 'border-box' }}>
       
-      {/* Top Navigation Tabs */}
-      <div style={{ display: 'flex', gap: '16px', marginBottom: '28px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+      {/* Top Navigation Header & Action Bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '750' }}>📁 Document Vault & Control Directory</h2>
+          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>Manage, categorize, and search through controlled company records and client files.</p>
+        </div>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button 
+            onClick={() => setIsMassUploadOpen(true)}
+            style={{ background: 'linear-gradient(135deg, #06b6d4, #3b82f6)', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '8px', fontWeight: '650', cursor: 'pointer', fontSize: '13px', boxShadow: '0 4px 12px rgba(6, 182, 212, 0.2)' }}
+          >
+            ⚡ Mass Upload Past Docs
+          </button>
+        </div>
+      </div>
+
+      {/* Navigation Sub-Bar */}
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '28px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
         <button 
           onClick={() => { setActiveTab('recent'); setSelectedFolderType(null); }}
-          style={{ background: activeTab === 'recent' ? '#3b82f6' : 'rgba(255,255,255,0.05)', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}
+          style={tabButtonStyle(activeTab === 'recent')}
         >
           Recent Uploads (Last 10)
         </button>
         <button 
           onClick={() => { setActiveTab('folders'); setSelectedFolderType(null); }}
-          style={{ background: activeTab === 'folders' ? '#3b82f6' : 'rgba(255,255,255,0.05)', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}
+          style={tabButtonStyle(activeTab === 'folders')}
         >
           📁 Master Folders View
         </button>
         <button 
           onClick={() => { setActiveTab('search'); setSelectedFolderType(null); }}
-          style={{ background: activeTab === 'search' ? '#3b82f6' : 'rgba(255,255,255,0.05)', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}
+          style={tabButtonStyle(activeTab === 'search')}
         >
           🔍 Advanced Search & Filters
         </button>
         <button 
           onClick={() => { setActiveTab('upload'); setSelectedFolderType(null); }}
-          style={{ background: activeTab === 'upload' ? '#06b6d4' : 'rgba(255,255,255,0.05)', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}
+          style={tabButtonStyle(activeTab === 'upload', true)}
         >
           + Register & Upload Document
-        </button>
-
-        {/* Mass Upload Action Button */}
-        <button 
-          onClick={() => setIsMassUploadOpen(true)}
-          style={{ background: 'linear-gradient(135deg, #06b6d4, #3b82f6)', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', marginLeft: 'auto' }}
-        >
-          ⚡ Mass Upload Past Docs
         </button>
       </div>
 
       {/* VIEW 1: RECENT 10 DOCUMENTS */}
       {activeTab === 'recent' && (
         <div>
-          <h2 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '16px' }}>Recent Document Additions (Last 10)</h2>
+          <div style={{ marginBottom: '16px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>Recent Document Additions</h3>
+            <p style={{ fontSize: '12px', color: '#94a3b8', margin: '2px 0 0 0' }}>Showing the last 10 ingested files.</p>
+          </div>
           <DocumentTable docs={recentDocuments} loading={loading} />
         </div>
       )}
@@ -210,15 +235,18 @@ export function DocumentsManager() {
         <div>
           {!selectedFolderType ? (
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
-                <h2 style={{ fontSize: '20px', fontWeight: '700', margin: 0 }}>Master Document Vault Folders</h2>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                <div>
+                  <h3 style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>Master Document Vault Folders</h3>
+                  <p style={{ fontSize: '12px', color: '#94a3b8', margin: '2px 0 0 0' }}>Select a directory or search across all repositories.</p>
+                </div>
                 {/* Global Search Bar inside Folders View */}
                 <input 
                   type="text"
                   value={folderSearchQuery}
                   onChange={(e) => setFolderSearchQuery(e.target.value)}
-                  placeholder="Search any document across all folders..."
-                  style={{ padding: '10px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', width: '300px' }}
+                  placeholder="🔍 Search any document across all folders..."
+                  style={{ padding: '10px 16px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', width: '320px', fontSize: '13px', outline: 'none' }}
                 />
               </div>
 
@@ -228,24 +256,24 @@ export function DocumentsManager() {
                   <DocumentTable docs={getFolderFilteredDocs(documents)} loading={loading} />
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', marginTop: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginTop: '16px' }}>
                   <div 
                     onClick={() => setSelectedFolderType('INTERNAL')}
-                    style={{ background: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(255,255,255,0.1)', padding: '24px', borderRadius: '12px', cursor: 'pointer', textAlign: 'center' }}
+                    style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255,255,255,0.08)', padding: '24px', borderRadius: '12px', cursor: 'pointer', transition: 'border-color 0.2s' }}
                   >
-                    <div style={{ fontSize: '48px', marginBottom: '12px' }}>📁</div>
-                    <h3 style={{ fontSize: '18px', fontWeight: '700' }}>Internal Documents</h3>
-                    <p style={{ color: '#94a3b8', fontSize: '13px', marginTop: '6px' }}>
+                    <div style={{ fontSize: '36px', marginBottom: '12px' }}>📁</div>
+                    <h3 style={{ fontSize: '16px', fontWeight: '700', margin: '0 0 4px 0' }}>Internal Documents</h3>
+                    <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>
                       {documents.filter(d => d.client_name === 'Internal').length} items • Company-wide records
                     </p>
                   </div>
                   <div 
                     onClick={() => setSelectedFolderType('CLIENTS')}
-                    style={{ background: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(255,255,255,0.1)', padding: '24px', borderRadius: '12px', cursor: 'pointer', textAlign: 'center' }}
+                    style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255,255,255,0.08)', padding: '24px', borderRadius: '12px', cursor: 'pointer', transition: 'border-color 0.2s' }}
                   >
-                    <div style={{ fontSize: '48px', marginBottom: '12px' }}>🗂️</div>
-                    <h3 style={{ fontSize: '18px', fontWeight: '700' }}>Client Folders</h3>
-                    <p style={{ color: '#94a3b8', fontSize: '13px', marginTop: '6px' }}>
+                    <div style={{ fontSize: '36px', marginBottom: '12px' }}>🗂️</div>
+                    <h3 style={{ fontSize: '16px', fontWeight: '700', margin: '0 0 4px 0' }}>Client Folders</h3>
+                    <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>
                       {clients.length} active client profiles & vaults
                     </p>
                   </div>
@@ -254,13 +282,13 @@ export function DocumentsManager() {
             </div>
           ) : selectedFolderType === 'INTERNAL' ? (
             <div>
-              <button onClick={() => setSelectedFolderType(null)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', marginBottom: '16px', fontWeight: '600' }}>← Back to Folders</button>
-              <h2 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '16px' }}>📁 Internal Documents</h2>
+              <button onClick={() => setSelectedFolderType(null)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', marginBottom: '16px', fontWeight: '600', fontSize: '13px', padding: 0 }}>← Back to Folders</button>
+              <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '16px' }}>📁 Internal Documents Directory</h3>
               <DocumentTable docs={getFolderFilteredDocs(documents.filter(d => d.client_name === 'Internal'))} loading={loading} />
             </div>
           ) : (
             <div>
-              <button onClick={() => { setSelectedFolderType(null); setSelectedClientFolder(null); }} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', marginBottom: '16px', fontWeight: '600' }}>← Back to Folders</button>
+              <button onClick={() => { setSelectedFolderType(null); setSelectedClientFolder(null); }} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', marginBottom: '16px', fontWeight: '600', fontSize: '13px', padding: 0 }}>← Back to Folders</button>
               <ClientFoldersView />
             </div>
           )}
@@ -273,19 +301,22 @@ export function DocumentsManager() {
       {/* VIEW 3 (Alternate): ADVANCED SEARCH & FILTERS */}
       {activeTab === 'search' && (
         <div>
-          <h2 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '16px' }}>Advanced Search & Filters</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+          <div style={{ marginBottom: '16px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>Advanced Search & Filters</h3>
+            <p style={{ fontSize: '12px', color: '#94a3b8', margin: '2px 0 0 0' }}>Filter documents precisely by keyword, client vault, or category.</p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px 220px', gap: '16px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)', marginBottom: '20px' }}>
             <input 
               type="text" 
               value={searchQuery} 
               onChange={(e) => setSearchQuery(e.target.value)} 
-              placeholder="Search by title, project, or keyword..." 
-              style={{ padding: '12px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff' }}
+              placeholder="🔍 Search by title, project, or keyword..." 
+              style={{ padding: '12px 16px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', fontSize: '14px', outline: 'none' }}
             />
             <select 
               value={filterClient} 
               onChange={(e) => setFilterClient(e.target.value)}
-              style={{ padding: '12px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff' }}
+              style={{ padding: '12px 16px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', fontSize: '14px', outline: 'none' }}
             >
               <option value="ALL">All Clients / Internal</option>
               <option value="Internal">Internal</option>
@@ -294,7 +325,7 @@ export function DocumentsManager() {
             <select 
               value={filterCategory} 
               onChange={(e) => setFilterCategory(e.target.value)}
-              style={{ padding: '12px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff' }}
+              style={{ padding: '12px 16px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', fontSize: '14px', outline: 'none' }}
             >
               <option value="ALL">All Document Types</option>
               <option value="Quotation">Quotation</option>
@@ -310,7 +341,7 @@ export function DocumentsManager() {
 
       {/* VIEW 4: UPLOAD FORM */}
       {activeTab === 'upload' && (
-        <div style={{ background: 'rgba(15, 23, 42, 0.8)', padding: '28px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', maxWidth: '600px', margin: '0 auto' }}>
+        <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '28px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)', maxWidth: '600px', margin: '0 auto' }}>
           <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px' }}>Register & Upload New Document</h3>
           
           <form onSubmit={handleUpload} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -322,7 +353,7 @@ export function DocumentsManager() {
                 onChange={(e) => setTitle(e.target.value)} 
                 placeholder="e.g., Pump Spare Quotation_v02" 
                 required
-                style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', color: '#fff' }}
+                style={{ width: '100%', padding: '12px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
               />
             </div>
 
@@ -349,7 +380,7 @@ export function DocumentsManager() {
                           }
                         }}
                         required={!isInternal}
-                        style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', color: '#fff' }}
+                        style={{ width: '100%', padding: '12px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', fontSize: '14px', outline: 'none' }}
                       >
                         <option value="">-- Select Client Folder --</option>
                         {clients.map((c) => <option key={c.id} value={c.client_name}>{c.client_name}</option>)}
@@ -363,19 +394,19 @@ export function DocumentsManager() {
                         value={newClientInput} 
                         onChange={(e) => setNewClientInput(e.target.value)} 
                         placeholder="Enter new client name (e.g. Chevron)..." 
-                        style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', color: '#fff' }}
+                        style={{ width: '100%', padding: '12px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', fontSize: '14px', outline: 'none' }}
                       />
                       <button 
                         type="button" 
                         onClick={handleCreateClient}
-                        style={{ padding: '0 16px', background: '#06b6d4', border: 'none', borderRadius: '6px', color: '#fff', fontWeight: '600', cursor: 'pointer' }}
+                        style={{ padding: '0 16px', background: '#06b6d4', border: 'none', borderRadius: '8px', color: '#fff', fontWeight: '600', cursor: 'pointer', fontSize: '13px' }}
                       >
                         Save
                       </button>
                       <button 
                         type="button" 
                         onClick={() => setIsAddingNewClient(false)}
-                        style={{ padding: '0 12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', color: '#94a3b8', cursor: 'pointer' }}
+                        style={{ padding: '0 12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', fontSize: '13px' }}
                       >
                         Cancel
                       </button>
@@ -390,7 +421,7 @@ export function DocumentsManager() {
               <select 
                 value={category} 
                 onChange={(e) => setCategory(e.target.value)}
-                style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', color: '#fff' }}
+                style={{ width: '100%', padding: '12px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', fontSize: '14px', outline: 'none' }}
               >
                 <option value="Quotation">Quotation</option>
                 <option value="Invoice">Invoice</option>
@@ -402,10 +433,10 @@ export function DocumentsManager() {
 
             <div>
               <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Select File</label>
-              <input type="file" onChange={(e) => setFile(e.target.files[0])} required style={{ width: '100%', color: '#94a3b8', fontSize: '12px' }} />
+              <input type="file" onChange={(e) => setFile(e.target.files[0])} required style={{ width: '100%', color: '#94a3b8', fontSize: '13px', padding: '8px 0' }} />
             </div>
 
-            <button type="submit" disabled={uploading} style={{ background: '#3b82f6', border: 'none', color: '#fff', padding: '12px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', marginTop: '8px' }}>
+            <button type="submit" disabled={uploading} style={{ background: '#3b82f6', border: 'none', color: '#fff', padding: '12px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', marginTop: '8px', fontSize: '14px' }}>
               {uploading ? 'Uploading to Database & Storage...' : 'Upload Document'}
             </button>
           </form>
@@ -428,40 +459,46 @@ export function DocumentsManager() {
   )
 }
 
-// Reusable Table Subcomponent matching Master Register Layout
+// Reusable Table Subcomponent with Modern Styling
 function DocumentTable({ docs, loading }) {
-  if (loading) return <p style={{ color: '#94a3b8', textAlign: 'center', padding: '40px' }}>Loading documents from database...</p>
-  if (docs.length === 0) return <p style={{ color: '#94a3b8', textAlign: 'center', padding: '40px' }}>No documents found.</p>
+  if (loading) return <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>Loading vault documents...</div>
+  if (docs.length === 0) return <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>No documents found matching your criteria.</div>
 
   return (
-    <div style={{ background: 'rgba(15, 23, 42, 0.75)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', overflowX: 'auto' }}>
+    <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', overflowX: 'hidden' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
         <thead>
-          <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }}>
-            <th style={{ padding: '16px' }}>DOCUMENT TITLE / PROJECT</th>
-            <th style={{ padding: '16px' }}>CLIENT / FOLDER</th>
-            <th style={{ padding: '16px' }}>TYPE</th>
-            <th style={{ padding: '16px' }}>UPLOADED DATE</th>
-            <th style={{ padding: '16px' }}>UPLOADED BY</th>
-            <th style={{ padding: '16px', textAlign: 'right' }}>ACTION</th>
+          <tr style={{ background: 'rgba(255,255,255,0.04)', color: '#94a3b8', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+            <th style={{ padding: '14px 16px' }}>Document Title / Project</th>
+            <th style={{ padding: '14px 16px' }}>Client / Vault</th>
+            <th style={{ padding: '14px 16px' }}>Type</th>
+            <th style={{ padding: '14px 16px' }}>Uploaded Date</th>
+            <th style={{ padding: '14px 16px' }}>Uploaded By</th>
+            <th style={{ padding: '14px 16px', textAlign: 'right' }}>Actions</th>
           </tr>
         </thead>
         <tbody>
           {docs.map((doc) => (
             <tr key={doc.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <td style={{ padding: '16px', fontWeight: '600' }}>{doc.title}</td>
+              <td style={{ padding: '14px 16px', fontWeight: '600', color: '#fff' }}>{doc.title}</td>
               <td style={{ padding: '16px', color: '#06b6d4', fontWeight: '500' }}>📁 {doc.client_name}</td>
-              <td style={{ padding: '16px' }}>{doc.category}</td>
-              <td style={{ padding: '16px', color: '#94a3b8' }}>{new Date(doc.created_at).toLocaleDateString()}</td>
-              <td style={{ padding: '16px', color: '#94a3b8' }}>{doc.uploaded_by}</td>
-              <td style={{ padding: '16px', textAlign: 'right' }}>
+              <td style={{ padding: '14px 16px' }}>
+                <span style={{ padding: '4px 10px', background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', borderRadius: '20px', fontSize: '11px', fontWeight: '600' }}>
+                  {doc.category || 'General'}
+                </span>
+              </td>
+              <td style={{ padding: '14px 16px', color: '#94a3b8' }}>
+                {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : '—'}
+              </td>
+              <td style={{ padding: '14px 16px', color: '#94a3b8' }}>{doc.uploaded_by || '—'}</td>
+              <td style={{ padding: '14px 16px', textAlign: 'right' }}>
                 <a 
                   href={doc.file_url} 
                   target="_blank" 
                   rel="noopener noreferrer" 
-                  style={{ background: 'rgba(59, 130, 246, 0.2)', border: '1px solid #3b82f6', color: '#60a5fa', padding: '6px 12px', borderRadius: '6px', textDecoration: 'none', fontWeight: '600', fontSize: '12px' }}
+                  style={{ background: 'rgba(255,255,255,0.08)', border: 'none', color: '#fff', padding: '6px 12px', borderRadius: '6px', textDecoration: 'none', fontWeight: '600', fontSize: '12px' }}
                 >
-                  Download / View
+                  View / Download
                 </a>
               </td>
             </tr>
