@@ -235,7 +235,7 @@ export function DocumentsManager() {
         </div>
       </div>
 
-      {/* Navigation Sub-Bar */}
+      {/* Navigation Sub-Bar (Explicitly includes Upload & Codebook Register button) */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '28px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
         <button 
           onClick={() => { setActiveTab('recent'); setSelectedFolderType(null); }}
@@ -389,7 +389,7 @@ export function DocumentsManager() {
         </div>
       )}
 
-      {/* VIEW 5: REGISTER & UPLOAD FORM WITH AUTOMATED MWT CODEBOOK */}
+      {/* VIEW 5: REGISTER & UPLOAD FORM WITH AUTOMATED MWT CODEBOOK REGISTRY */}
       {activeTab === 'upload' && (
         <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '28px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)', maxWidth: '650px', margin: '0 auto' }}>
           <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '6px' }}>Register & Upload New Document</h3>
@@ -495,9 +495,9 @@ export function DocumentsManager() {
               </div>
             </div>
 
-            {/* Generated Code Preview Box */}
+            {/* Generated Code Preview Box (MWT Codebook Registry Integration) */}
             <div>
-              <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Generated MWT Document Code (Auto-Sequenced)</label>
+              <label style={{ display: 'block', fontSize: '12px', color: '#06b6d4', marginBottom: '6px', fontWeight: '600' }}>⚡ MWT Codebook Registry Preview (Auto-Sequenced)</label>
               <div style={{ width: '100%', background: 'rgba(6, 182, 212, 0.08)', border: '1px solid rgba(6, 182, 212, 0.4)', borderRadius: '8px', padding: '12px 14px', fontFamily: 'monospace', color: '#06b6d4', fontWeight: 'bold', fontSize: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box' }}>
                 <span>{generatedCode}</span>
                 <span style={{ fontSize: '11px', background: 'rgba(6, 182, 212, 0.2)', padding: '2px 8px', borderRadius: '4px' }}>Serial: {serialNumber}</span>
