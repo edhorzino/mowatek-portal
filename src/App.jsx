@@ -7,6 +7,7 @@ import { EquipmentPage } from './components/EquipmentPage'
 import { MaintenancePage } from './components/MaintenancePage'
 import { DocumentsPage } from './components/DocumentsPage'
 import { TasksPage } from './components/TasksPage'
+import { BrandLogo } from './components/BrandLogo'
 import { supabase } from './lib/supabase'
 import "./App.css";
 
@@ -319,9 +320,12 @@ function AppContent() {
       <aside className={`sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
         <div>
           <div className="brand-section">
-            <div>
-              <div className="brand-title">MOWATEK</div>
-              <div className="brand-subtitle">{isAdmin ? 'ADMIN PORTAL V1.0' : 'EMPLOYEE PORTAL'}</div>
+            <div className="sidebar-brand-lockup">
+              <BrandLogo size={40} />
+              <div>
+                <div className="brand-title">MOWATEK</div>
+                <div className="brand-subtitle">{isAdmin ? 'ADMIN PORTAL V1.0' : 'EMPLOYEE PORTAL'}</div>
+              </div>
             </div>
             {mobileOpen && (
               <button className="hamburger-btn" onClick={() => setMobileOpen(false)}>

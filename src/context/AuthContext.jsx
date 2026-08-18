@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 
 const AuthContext = createContext({})
+const INACTIVITY_LIMIT_MS = 8 * 60 * 60 * 1000
+const LAST_ACTIVITY_KEY = 'mowatek-last-activity-at'
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -53,6 +55,51 @@ export function AuthProvider({ children }) {
 
     return () => subscription.unsubscribe()
   }, [])
+
+  useEffect(() => {
+    if (!user) {
+      localStorage.removeItem(LAST_ACTIVITY_KEY)
+      return undefined
+    }
+
+    let signingOut = false
+    const endInactiveSession = async () => {
+      if (signingOut) return
+      signingOut = true
+      localStorage.removeItem(LAST_ACTIVITY_KEY)
+      await supabase.auth.signOut({ scope: 'local' })
+      setUser(null)
+      setSession(null)
+      setProfile(null)
+    }
+
+    const getLastActivity = () => Number(localStorage.getItem(LAST_ACTIVITY_KEY) || 0)
+    const checkInactivity = () => {
+      if (Date.now() - getLastActivity() >= INACTIVITY_LIMIT_MS) {
+        void endInactiveSession()
+      }
+    }
+    const refreshActivity = () => {
+      checkInactivity()
+      if (!signingOut) localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()))
+    }
+
+    if (!getLastActivity()) localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()))
+    checkInactivity()
+
+    const activityEvents = ['mousedown', 'keydown', 'touchstart', 'scroll']
+    activityEvents.forEach((eventName) => window.addEventListener(eventName, refreshActivity, { passive: true }))
+    window.addEventListener('focus', checkInactivity)
+    document.addEventListener('visibilitychange', checkInactivity)
+    const timer = window.setInterval(checkInactivity, 60 * 1000)
+
+    return () => {
+      activityEvents.forEach((eventName) => window.removeEventListener(eventName, refreshActivity))
+      window.removeEventListener('focus', checkInactivity)
+      document.removeEventListener('visibilitychange', checkInactivity)
+      window.clearInterval(timer)
+    }
+  }, [user])
 
   // Sign up handler enforcing @mowatek.com domain and profile creation
   const signup = async (email, password, fullName) => {
@@ -117,6 +164,7 @@ export function AuthProvider({ children }) {
           department: userProfile.department || 'General'
         }
       ])
+      localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()))
     }
 
     return data
@@ -124,11 +172,12 @@ export function AuthProvider({ children }) {
 
   // Logout handler
   const logout = async () => {
-    const { error } = await supabase.auth.signOut()
+    const { error } = await supabase.auth.signOut({ scope: 'local' })
     if (error) console.error('Error signing out:', error.message)
     setUser(null)
     setSession(null)
     setProfile(null)
+    localStorage.removeItem(LAST_ACTIVITY_KEY)
   }
 
   // Extract display details safely

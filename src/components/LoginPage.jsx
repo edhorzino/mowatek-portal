@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { BrandLogo } from './BrandLogo'
 
 export function LoginPage() {
   const { login, signup } = useAuth()
@@ -82,24 +83,7 @@ export function LoginPage() {
           }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-                <div style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '10px',
-                  background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#fff',
-                  fontWeight: '900',
-                  fontSize: '20px',
-                  boxShadow: '0 4px 12px rgba(6, 182, 212, 0.3)'
-                }}>
-                  M
-                </div>
-                <span style={{ fontSize: '18px', fontWeight: '800', color: '#fff', letterSpacing: '1.5px' }}>
-                  MOWATEK
-                </span>
+                <BrandLogo size={48} showWordmark />
               </div>
 
               <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#fff', lineHeight: '1.2', marginBottom: '12px' }}>
