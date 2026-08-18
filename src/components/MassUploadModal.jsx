@@ -158,6 +158,38 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
                 <option value="Technical Report">Technical Report</option>
                 <option value="Tender Spec">Tender Spec</option>
                 <option value="Contract">Contract</option>
+                <option value="Certificate">Certificate</option>
+                <option value="Request for Quotation">Request for Quotation</option>
+                <option value="Tender">Tender</option>
+                <option value="Invitation to Quote">Invitation to Quote</option>
+                <option value="Invitation to Bid">Invitation to Bid</option>
+                <option value="Bill of Quantities">Bill of Quantities</option>
+                <option value="Purchase Order">Purchase Order</option>
+                <option value="Purchase Requisition">Purchase Requisition</option>
+                <option value="Scope of Work">Scope of Work</option>
+                <option value="Specification">Specification</option>
+                <option value="Datasheet">Datasheet</option>
+                <option value="Drawing">Drawing</option>
+                <option value="Calculation">Calculation</option>
+                <option value="Material Take-Off">Material Take-Off</option>
+                <option value="Material Test Report">Material Test Report</option>
+                <option value="Technical Proposal">Technical Proposal</option>
+                <option value="Commercial Proposal">Commercial Proposal</option>
+                <option value="General Proposal">General Proposal</option>
+                <option value="Report">Report</option>
+                <option value="Minutes of Meeting">Minutes of Meeting</option>
+                <option value="Meeting Minutes">Meeting Minutes</option>
+                <option value="Meeting/Visit Report">Meeting/Visit Report</option>
+                <option value="Agreement">Agreement</option>
+                <option value="Non-Disclosure Agreement">Non-Disclosure Agreement</option>
+                <option value="Letter">Letter</option>
+                <option value="Memorandum">Memorandum</option>
+                <option value="Health, Safety & Env.">Health, Safety & Env.</option>
+                <option value="Quality Assurance">Quality Assurance</option>
+                <option value="Quality Control">Quality Control</option>
+                <option value="Non-Conformance Report">Non-Conformance Report</option>
+                <option value="Method Statement">Method Statement</option>
+                <option value="Inspection & Test Plan">Inspection & Test Plan</option>  
               </select>
             </div>
           </div>
@@ -221,6 +253,38 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
                             <option value="Technical Report">Technical Report</option>
                             <option value="Tender Spec">Tender Spec</option>
                             <option value="Contract">Contract</option>
+                            <option value="Certificate">Certificate</option>
+                            <option value="Request for Quotation">Request for Quotation</option>
+                            <option value="Tender">Tender</option>
+                            <option value="Invitation to Quote">Invitation to Quote</option>
+                            <option value="Invitation to Bid">Invitation to Bid</option>
+                            <option value="Bill of Quantities">Bill of Quantities</option>
+                            <option value="Purchase Order">Purchase Order</option>
+                            <option value="Purchase Requisition">Purchase Requisition</option>
+                            <option value="Scope of Work">Scope of Work</option>
+                            <option value="Specification">Specification</option>
+                            <option value="Datasheet">Datasheet</option>
+                            <option value="Drawing">Drawing</option>
+                            <option value="Calculation">Calculation</option>
+                            <option value="Material Take-Off">Material Take-Off</option>
+                            <option value="Material Test Report">Material Test Report</option>
+                            <option value="Technical Proposal">Technical Proposal</option>
+                            <option value="Commercial Proposal">Commercial Proposal</option>
+                            <option value="General Proposal">General Proposal</option>
+                            <option value="Report">Report</option>
+                            <option value="Minutes of Meeting">Minutes of Meeting</option>
+                            <option value="Meeting Minutes">Meeting Minutes</option>
+                            <option value="Meeting/Visit Report">Meeting/Visit Report</option>
+                            <option value="Agreement">Agreement</option>
+                            <option value="Non-Disclosure Agreement">Non-Disclosure Agreement</option>
+                            <option value="Letter">Letter</option>
+                            <option value="Memorandum">Memorandum</option>
+                            <option value="Health, Safety & Env.">Health, Safety & Env.</option>
+                            <option value="Quality Assurance">Quality Assurance</option>
+                            <option value="Quality Control">Quality Control</option>
+                            <option value="Non-Conformance Report">Non-Conformance Report</option>
+                            <option value="Method Statement">Method Statement</option>
+                            <option value="Inspection & Test Plan">Inspection & Test Plan</option>
                           </select>
                         </td>
                         <td style={{ padding: '8px', color: '#94a3b8' }}>{item.size}</td>
