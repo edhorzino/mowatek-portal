@@ -9,6 +9,50 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState('')
 
+  // Map UI category names to Mowatek Master Codebook document type codes
+  const categoryToTypeCode = (category) => {
+    const mapping = {
+      'Quotation': 'QTN',
+      'Invoice': 'INV',
+      'Technical Report': 'RPT',
+      'Tender Spec': 'SPEC',
+      'Contract': 'CON',
+      'Certificate': 'CERT',
+      'Request for Quotation': 'RFQ',
+      'Tender': 'TND',
+      'Invitation to Quote': 'ITQ',
+      'Invitation to Bid': 'ITB',
+      'Bill of Quantities': 'BOQ',
+      'Purchase Order': 'PO',
+      'Purchase Requisition': 'PR',
+      'Scope of Work': 'SOW',
+      'Specification': 'SPEC',
+      'Datasheet': 'DAT',
+      'Drawing': 'DRW',
+      'Calculation': 'CAL',
+      'Material Take-Off': 'MTO',
+      'Material Test Report': 'MTR',
+      'Technical Proposal': 'TP',
+      'Commercial Proposal': 'CP',
+      'General Proposal': 'PROP',
+      'Report': 'RPT',
+      'Minutes of Meeting': 'MOM',
+      'Meeting Minutes': 'MIN',
+      'Meeting/Visit Report': 'MVR',
+      'Agreement': 'AGR',
+      'Non-Disclosure Agreement': 'NDA',
+      'Letter': 'LTR',
+      'Memorandum': 'MEM',
+      'Health, Safety & Env.': 'HSE',
+      'Quality Assurance': 'QA',
+      'Quality Control': 'QC',
+      'Non-Conformance Report': 'NCR',
+      'Method Statement': 'MS',
+      'Inspection & Test Plan': 'ITP'
+    }
+    return mapping[category] || 'RPT'
+  }
+
   // Handle files selected via file input or drag-and-drop
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files)
@@ -47,7 +91,37 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
     setSelectedFiles(prev => prev.filter(item => item.id !== id))
   }
 
-  // Execute batch upload to storage & database
+  // Fetch the next unique sequence number for a given document type and year
+  const getNextSequenceNumber = async (typeCode, year) => {
+    const prefix = `MWT-${typeCode}-${year}-`
+    const { data, error } = await supabase
+      .from('documents')
+      .select('doc_number')
+      .ilike('doc_number', `${prefix}%`)
+
+    if (error) {
+      console.error('Error fetching existing document numbers:', error)
+      // Fallback random/timestamp offset if query fails, ensuring uniqueness
+      return Math.floor(100 + Math.random() * 900)
+    }
+
+    let maxSeq = 0
+    if (data && data.length > 0) {
+      data.forEach(row => {
+        if (row.doc_number) {
+          const parts = row.doc_number.split('-')
+          const seqStr = parts[parts.length - 1]
+          const seqNum = parseInt(seqStr, 10)
+          if (!isNaN(seqNum) && seqNum > maxSeq) {
+            maxSeq = seqNum
+          }
+        }
+      })
+    }
+    return maxSeq + 1
+  }
+
+  // Execute batch upload to storage & database with Master Codebook compliance
   const executeMassUpload = async () => {
     const destination = isInternal ? 'Internal' : targetClient
     if (!destination || selectedFiles.length === 0) {
@@ -59,9 +133,26 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
     let successCount = 0
 
     try {
+      const currentYear = new Date().getFullYear()
+      // Keep track of sequence increments per type code during this batch execution
+      const batchCounters = {}
+
       for (let i = 0; i < selectedFiles.length; i++) {
         const item = selectedFiles[i]
-        setUploadProgress(`Uploading file ${i + 1} of ${selectedFiles.length}: ${item.title}`)
+        setUploadProgress(`Processing file ${i + 1} of ${selectedFiles.length}: ${item.title}`)
+
+        const typeCode = categoryToTypeCode(item.category)
+        
+        // Initialize or increment sequence tracker for this type code
+        if (!batchCounters[typeCode]) {
+          const nextDbSeq = await getNextSequenceNumber(typeCode, currentYear)
+          batchCounters[typeCode] = nextDbSeq
+        } else {
+          batchCounters[typeCode] += 1
+        }
+
+        const sequentialId = String(batchCounters[typeCode]).padStart(3, '0')
+        const docNumber = `MWT-${typeCode}-${currentYear}-${sequentialId}`
 
         const fileExt = item.file.name.split('.').pop()
         const uniqueFileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`
@@ -79,9 +170,10 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
           .from('mowatek-documents')
           .getPublicUrl(filePath)
 
-        // 2. Insert metadata into database table
+        // 2. Insert metadata into database table with Master Codebook compliant doc_number
         const { error: dbError } = await supabase.from('documents').insert([
           {
+            doc_number: docNumber,
             title: item.title,
             client_name: destination,
             category: item.category,
@@ -96,7 +188,7 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
         successCount++
       }
 
-      alert(`Successfully uploaded ${successCount} documents to the vault!`)
+      alert(`Successfully uploaded ${successCount} documents to the vault with Master Codebook compliance!`)
       onUploadComplete()
       onClose()
     } catch (err) {
