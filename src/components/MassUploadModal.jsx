@@ -53,7 +53,6 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
     return mapping[category] || 'RPT'
   }
 
-  // Handle files selected via file input or drag-and-drop
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files)
     processFiles(files)
@@ -67,9 +66,7 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
 
   const processFiles = (files) => {
     const formattedFiles = files.map((file) => {
-      // Strip file extension to create a neat default title
       const cleanName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name
-      // Format title: Replace underscores/hyphens with spaces and capitalize words nicely
       const formattedTitle = cleanName.replace(/[_]/g, ' ')
 
       return {
@@ -91,25 +88,23 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
     setSelectedFiles(prev => prev.filter(item => item.id !== id))
   }
 
-  // Fetch the next unique sequence number for a given document type and year
   const getNextSequenceNumber = async (typeCode, year) => {
     const prefix = `MWT-${typeCode}-${year}-`
     const { data, error } = await supabase
       .from('documents')
-      .select('doc_number')
-      .ilike('doc_number', `${prefix}%`)
+      .select('doc_number, document_code')
 
     if (error) {
       console.error('Error fetching existing document numbers:', error)
-      // Fallback random/timestamp offset if query fails, ensuring uniqueness
       return Math.floor(100 + Math.random() * 900)
     }
 
     let maxSeq = 0
     if (data && data.length > 0) {
       data.forEach(row => {
-        if (row.doc_number) {
-          const parts = row.doc_number.split('-')
+        const val = row.doc_number || row.document_code
+        if (val && val.startsWith(prefix)) {
+          const parts = val.split('-')
           const seqStr = parts[parts.length - 1]
           const seqNum = parseInt(seqStr, 10)
           if (!isNaN(seqNum) && seqNum > maxSeq) {
@@ -121,7 +116,6 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
     return maxSeq + 1
   }
 
-  // Execute batch upload to storage & database with Master Codebook compliance
   const executeMassUpload = async () => {
     const destination = isInternal ? 'Internal' : targetClient
     if (!destination || selectedFiles.length === 0) {
@@ -134,7 +128,6 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
 
     try {
       const currentYear = new Date().getFullYear()
-      // Keep track of sequence increments per type code during this batch execution
       const batchCounters = {}
 
       for (let i = 0; i < selectedFiles.length; i++) {
@@ -143,7 +136,6 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
 
         const typeCode = categoryToTypeCode(item.category)
         
-        // Initialize or increment sequence tracker for this type code
         if (!batchCounters[typeCode]) {
           const nextDbSeq = await getNextSequenceNumber(typeCode, currentYear)
           batchCounters[typeCode] = nextDbSeq
@@ -159,7 +151,6 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
         const folderSlug = isInternal ? 'internal_documents' : destination.toLowerCase().replace(/\s+/g, '_')
         const filePath = `${folderSlug}/${uniqueFileName}`
 
-        // 1. Upload file to Supabase Storage
         const { error: storageError } = await supabase.storage
           .from('mowatek-documents')
           .upload(filePath, item.file)
@@ -170,10 +161,14 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
           .from('mowatek-documents')
           .getPublicUrl(filePath)
 
-        // 2. Insert metadata into database table with Master Codebook compliant doc_number
+        // Insert metadata satisfying all identified unique sequence and code constraints
         const { error: dbError } = await supabase.from('documents').insert([
           {
             doc_number: docNumber,
+            document_code: docNumber,
+            serial_number: sequentialId,
+            year: currentYear,
+            doc_type: typeCode,
             title: item.title,
             client_name: destination,
             category: item.category,
@@ -188,7 +183,7 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
         successCount++
       }
 
-      alert(`Successfully uploaded ${successCount} documents to the vault with Master Codebook compliance!`)
+      alert(`Successfully uploaded ${successCount} documents to the vault!`)
       onUploadComplete()
       onClose()
     } catch (err) {
@@ -204,16 +199,13 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
     <div style={{ position: 'fixed', inset: '0', background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
       <div style={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '16px', width: '100%', maxWidth: '900px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', color: '#fff' }}>
         
-        {/* Modal Header */}
         <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700' }}>⚡ Mass Document Ingestion & Batch Upload</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '20px', cursor: 'pointer' }}>✕</button>
         </div>
 
-        {/* Modal Body */}
         <div style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
-          {/* Destination & Default Settings */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)' }}>
             <div>
               <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Target Vault / Folder *</label>
@@ -286,7 +278,6 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
             </div>
           </div>
 
-          {/* Drag & Drop Zone */}
           <div 
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
@@ -307,7 +298,6 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
             </label>
           </div>
 
-          {/* Staged Files Table */}
           {selectedFiles.length > 0 && (
             <div>
               <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '10px', color: '#06b6d4' }}>
@@ -393,7 +383,6 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
 
         </div>
 
-        {/* Modal Footer */}
         <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.2)' }}>
           <span style={{ fontSize: '12px', color: '#94a3b8' }}>{uploadProgress}</span>
           <div style={{ display: 'flex', gap: '12px' }}>
