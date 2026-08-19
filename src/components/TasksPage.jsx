@@ -1,348 +1,130 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+
+const WAT_TIME_SUFFIX = 'T08:00:00.000Z'
+const inputStyle = { display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 6, padding: 10, background: 'rgba(0,0,0,.3)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 6, color: '#fff' }
+const primaryButtonStyle = { background: 'var(--accent-cyan)', color: '#0f172a', border: 'none', padding: 12, fontWeight: 700, borderRadius: 6, cursor: 'pointer' }
+const quickButtonStyle = { padding: '6px 10px', background: 'rgba(6,182,212,.1)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', borderRadius: 4, fontSize: 11, cursor: 'pointer' }
+const actionButtonStyle = { background: 'rgba(6,182,212,.1)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', padding: '5px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 600 }
+
+function toReminderTimestamp(date) { return `${date}${WAT_TIME_SUFFIX}` }
+function formatReminderDate(value) { return new Intl.DateTimeFormat('en-NG', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Africa/Lagos' }).format(new Date(value)) }
+function employeeName(employee) { return [employee.first_name, employee.middle_name, employee.last_name].filter(Boolean).join(' ') || employee.work_email }
+function deliveryLabel(task) {
+  if (task.delivery_status === 'sent') return 'Email sent'
+  if (task.delivery_status === 'failed') return 'Delivery needs attention'
+  if (task.delivery_status === 'sending') return 'Delivery in progress'
+  return 'Email queued'
+}
 
 export function TasksPage({ user }) {
   const [tasks, setTasks] = useState([])
+  const [employees, setEmployees] = useState([])
   const [loading, setLoading] = useState(true)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [reminderDate, setReminderDate] = useState('')
+  const [sharedEmails, setSharedEmails] = useState([])
   const [submitting, setSubmitting] = useState(false)
-
-  // Reschedule Modal State
-  const [rescheduleTask, setRescheduleTask] = useState(null)
-  const [rescheduleDate, setRescheduleDate] = useState('')
-  const [rescheduleNotes, setRescheduleNotes] = useState('')
+  const [editingTask, setEditingTask] = useState(null)
+  const [editDate, setEditDate] = useState('')
+  const [editNotes, setEditNotes] = useState('')
   const [rescheduling, setRescheduling] = useState(false)
 
-  // Fetch tasks for current user
-  useEffect(() => {
-    async function fetchTasks() {
-      if (!user?.email) return
-      try {
-        setLoading(true)
-        const { data, error } = await supabase
-          .from('tasks')
-          .select('*')
-          .eq('user_email', user.email.toLowerCase())
-          .order('reminder_date', { ascending: true })
+  const currentEmail = user?.email?.toLowerCase() || ''
+  const shareableEmployees = useMemo(() => employees.filter((employee) => employee.work_email?.toLowerCase() !== currentEmail), [employees, currentEmail])
 
-        if (error) throw error
-        setTasks(data || [])
-      } catch (err) {
-        console.error('Error loading tasks:', err.message)
-      } finally {
-        setLoading(false)
-      }
+  const fetchPageData = async () => {
+    if (!currentEmail) return
+    try {
+      setLoading(true)
+      const [tasksResult, employeesResult] = await Promise.all([
+        supabase.from('tasks').select('*, task_participants(user_email, participant_role)').order('reminder_date', { ascending: true }),
+        supabase.from('employees').select('work_email, first_name, middle_name, last_name, department, status').ilike('status', 'active').order('first_name', { ascending: true }),
+      ])
+      if (tasksResult.error) throw tasksResult.error
+      if (employeesResult.error) throw employeesResult.error
+      setTasks(tasksResult.data || [])
+      setEmployees(employeesResult.data || [])
+    } catch (error) {
+      console.error('Error loading reminders:', error.message)
+      alert(`Unable to load reminders: ${error.message}`)
+    } finally {
+      setLoading(false)
     }
-    fetchTasks()
-  }, [user])
+  }
 
-  // Quick reminder day calculators (sets target date formatted as YYYY-MM-DD)
-  const setQuickReminder = (daysAhead, isReschedule = false) => {
+  useEffect(() => { void fetchPageData() }, [currentEmail])
+
+  const setQuickReminder = (daysAhead, editing = false) => {
     const target = new Date()
     target.setDate(target.getDate() + daysAhead)
-    const localDateString = target.toISOString().split('T')[0]
-    if (isReschedule) {
-      setRescheduleDate(localDateString)
-    } else {
-      setReminderDate(localDateString)
-    }
+    const date = target.toISOString().split('T')[0]
+    if (editing) setEditDate(date)
+    else setReminderDate(date)
   }
 
-  const handleAddTask = async (e) => {
-    e.preventDefault()
-    if (!title || !reminderDate) {
-      alert('Please provide a task title and reminder date.')
-      return
-    }
+  const toggleSharedEmail = (email) => setSharedEmails((current) => current.includes(email) ? current.filter((item) => item !== email) : [...current, email])
 
+  const handleAddTask = async (event) => {
+    event.preventDefault()
+    if (!title.trim() || !reminderDate) return
     try {
       setSubmitting(true)
-      const lockedDateTime = `${reminderDate}T09:00:00.000Z`
-
-      const newTaskPayload = {
-        user_email: user.email.toLowerCase(),
-        title,
-        description,
-        reminder_date: lockedDateTime,
-        status: 'Pending'
+      const { data: createdTask, error: taskError } = await supabase.from('tasks').insert({ user_email: currentEmail, creator_email: currentEmail, title: title.trim(), description: description.trim() || null, reminder_date: toReminderTimestamp(reminderDate), status: 'Pending' }).select().single()
+      if (taskError) throw taskError
+      if (sharedEmails.length) {
+        const { error: participantError } = await supabase.from('task_participants').insert(sharedEmails.map((email) => ({ task_id: createdTask.id, user_email: email, participant_role: 'cc', added_by_email: currentEmail })))
+        if (participantError) throw participantError
       }
-
-      const { data, error } = await supabase
-        .from('tasks')
-        .insert([newTaskPayload])
-        .select()
-
-      if (error) throw error
-
-      if (data && data.length > 0) {
-        setTasks([data[0], ...tasks])
-      }
-
-      setTitle('')
-      setDescription('')
-      setReminderDate('')
-    } catch (err) {
-      console.error('Error saving task:', err.message)
-      alert('Failed to save task: ' + err.message)
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const handleDeleteTask = async (id) => {
-    try {
-      const { error } = await supabase.from('tasks').delete().eq('id', id)
-      if (error) throw error
-      setTasks(tasks.filter(t => t.id !== id))
-    } catch (err) {
-      console.error('Error deleting task:', err.message)
-    }
+      setTitle(''); setDescription(''); setReminderDate(''); setSharedEmails([])
+      await fetchPageData()
+    } catch (error) {
+      console.error('Error saving reminder:', error.message)
+      alert(`Failed to schedule reminder: ${error.message}`)
+    } finally { setSubmitting(false) }
   }
 
   const openRescheduleModal = (task) => {
-    setRescheduleTask(task)
-    setRescheduleNotes(task.description || '')
-    const defaultDate = task.reminder_date ? task.reminder_date.split('T')[0] : ''
-    setRescheduleDate(defaultDate)
+    setEditingTask(task)
+    setEditNotes(task.description || '')
+    setEditDate(task.reminder_date?.split('T')[0] || '')
   }
 
-  const handleRescheduleSubmit = async (e) => {
-    e.preventDefault()
-    if (!rescheduleTask || !rescheduleDate) return
-
+  const handleReschedule = async (event) => {
+    event.preventDefault()
+    if (!editingTask || !editDate) return
     try {
       setRescheduling(true)
-      const lockedDateTime = `${rescheduleDate}T09:00:00.000Z`
-
-      const { data, error } = await supabase
-        .from('tasks')
-        .update({
-          reminder_date: lockedDateTime,
-          description: rescheduleNotes,
-          status: 'Pending'
-        })
-        .eq('id', rescheduleTask.id)
-        .select()
-
+      const { error } = await supabase.from('tasks').update({ reminder_date: toReminderTimestamp(editDate), description: editNotes.trim() || null, status: 'Pending' }).eq('id', editingTask.id)
       if (error) throw error
-
-      setTasks(tasks.map(t => t.id === rescheduleTask.id ? data[0] : t))
-      setRescheduleTask(null)
-    } catch (err) {
-      console.error('Error rescheduling task:', err.message)
-      alert('Failed to reschedule: ' + err.message)
-    } finally {
-      setRescheduling(false)
-    }
+      setEditingTask(null)
+      await fetchPageData()
+    } catch (error) { alert(`Failed to reschedule reminder: ${error.message}`) } finally { setRescheduling(false) }
   }
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1000px', position: 'relative' }}>
-      <div>
-        <span className="page-eyebrow">PROJECT ALPHA • AUTOMATED WORKFLOWS</span>
-        <h1 style={{ fontSize: '28px', fontWeight: 800, margin: '4px 0 8px 0', color: '#fff' }}>
-          Smart Task Reminders
-        </h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: 0 }}>
-          Create tasks, pick a reminder day, and receive morning email digests at 9:00 AM.
-        </p>
-      </div>
+  const updateTaskStatus = async (task, status) => {
+    const action = status === 'Completed' ? 'complete' : 'cancel'
+    if (!window.confirm(`Are you sure you want to ${action} “${task.title}”?`)) return
+    try {
+      const { error } = await supabase.from('tasks').update({ status, ...(status === 'Completed' ? { completed_by_email: currentEmail } : {}) }).eq('id', task.id)
+      if (error) throw error
+      await fetchPageData()
+    } catch (error) { alert(`Failed to update reminder: ${error.message}`) }
+  }
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
-        
-        {/* Task Creation Form */}
-        <div className="content-card" style={{ height: 'fit-content' }}>
-          <h3 style={{ margin: '0 0 16px 0', color: '#fff', fontSize: '18px' }}>Create New Reminder</h3>
-          <form onSubmit={handleAddTask} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Task Title / Client Follow-up</label>
-              <input
-                type="text"
-                placeholder="e.g. Call client regarding quotation feedback"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#fff' }}
-                required
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Notes / Details (Optional)</label>
-              <textarea
-                placeholder="Add context, phone numbers, or RFQ reference codes..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows="3"
-                style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#fff', resize: 'vertical' }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Quick Frequency Select</label>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
-                <button type="button" onClick={() => setQuickReminder(1)} style={{ padding: '6px 10px', background: 'rgba(6,182,212,0.1)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>Tomorrow</button>
-                <button type="button" onClick={() => setQuickReminder(2)} style={{ padding: '6px 10px', background: 'rgba(6,182,212,0.1)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>In 2 Days</button>
-                <button type="button" onClick={() => setQuickReminder(7)} style={{ padding: '6px 10px', background: 'rgba(6,182,212,0.1)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>In 1 Week</button>
-              </div>
-
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Reminder Date (Delivers at 9:00 AM)</label>
-              <input
-                type="date"
-                value={reminderDate}
-                onChange={(e) => setReminderDate(e.target.value)}
-                style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#fff' }}
-                required
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={submitting}
-              style={{ background: 'var(--accent-cyan)', color: '#0f172a', border: 'none', padding: '12px', fontWeight: 700, borderRadius: '6px', cursor: 'pointer', marginTop: '8px' }}
-            >
-              {submitting ? 'Scheduling...' : 'Set Task & Automated Email'}
-            </button>
-          </form>
-        </div>
-
-        {/* Task List View */}
-        <div className="content-card">
-          <h3 style={{ margin: '0 0 16px 0', color: '#fff', fontSize: '18px' }}>Your Scheduled Reminders</h3>
-          {loading ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Loading tasks...</p>
-          ) : tasks.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
-              <p style={{ fontSize: '14px', margin: 0 }}>No active reminders set.</p>
-              <p style={{ fontSize: '12px', marginTop: '6px' }}>Create a task on the left to start tracking follow-ups.</p>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '500px', overflowY: 'auto' }}>
-              {tasks.map((task) => (
-                <div key={task.id} style={{ background: 'rgba(0,0,0,0.25)', padding: '14px', borderRadius: '8px', borderLeft: '4px solid var(--accent-cyan)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-                    <strong style={{ color: '#fff', fontSize: '14px' }}>{task.title}</strong>
-                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                      {task.status === 'Sent' && (
-                        <button
-                          onClick={() => openRescheduleModal(task)}
-                          style={{ background: 'rgba(6, 182, 212, 0.1)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
-                          title="Reschedule Follow-up"
-                        >
-                          Reschedule ⟳
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDeleteTask(task.id)}
-                        style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', color: '#10b981', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
-                        title="Mark Complete & Delete"
-                      >
-                        Complete ✓
-                      </button>
-                      <button
-                        onClick={() => handleDeleteTask(task.id)}
-                        style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px', padding: '0 2px' }}
-                        title="Delete Task"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                  {task.description && (
-                    <p style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '13px' }}>{task.description}</p>
-                  )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#94a3b8', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px' }}>
-                    <span>⏰ Reminder: {new Date(task.reminder_date).toLocaleString()}</span>
-                    <span style={{ color: task.status === 'Sent' ? '#f59e0b' : '#10b981', fontWeight: 600 }}>● {task.status || 'Active'}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-      </div>
-
-      {/* Reschedule Modal Popup */}
-      {rescheduleTask && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          background: 'rgba(0,0,0,0.7)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          padding: '20px'
-        }}>
-          <div className="content-card" style={{ width: '100%', maxWidth: '480px', background: '#1e293b', border: '1px solid rgba(255,255,255,0.15)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0, color: '#fff', fontSize: '18px' }}>Reschedule Reminder</h3>
-              <button
-                onClick={() => setRescheduleTask(null)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: '16px', cursor: 'pointer' }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: '0 0 16px 0' }}>
-              Updating follow-up for: <strong style={{ color: '#fff' }}>{rescheduleTask.title}</strong>
-            </p>
-
-            <form onSubmit={handleRescheduleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Quick Frequency Select</label>
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
-                  <button type="button" onClick={() => setQuickReminder(1, true)} style={{ padding: '6px 10px', background: 'rgba(6,182,212,0.1)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>Tomorrow</button>
-                  <button type="button" onClick={() => setQuickReminder(3, true)} style={{ padding: '6px 10px', background: 'rgba(6,182,212,0.1)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>In 3 Days</button>
-                  <button type="button" onClick={() => setQuickReminder(7, true)} style={{ padding: '6px 10px', background: 'rgba(6,182,212,0.1)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>In 1 Week</button>
-                </div>
-
-                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>New Reminder Date (Delivers at 9:00 AM)</label>
-                <input
-                  type="date"
-                  value={rescheduleDate}
-                  onChange={(e) => setRescheduleDate(e.target.value)}
-                  style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#fff' }}
-                  required
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Update Notes / Details (Optional)</label>
-                <textarea
-                  value={rescheduleNotes}
-                  onChange={(e) => setRescheduleNotes(e.target.value)}
-                  rows="3"
-                  style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#fff', resize: 'vertical' }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
-                <button
-                  type="button"
-                  onClick={() => setRescheduleTask(null)}
-                  style={{ flex: 1, background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', padding: '10px', fontWeight: 600, borderRadius: '6px', cursor: 'pointer' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={rescheduling}
-                  style={{ flex: 1, background: 'var(--accent-cyan)', color: '#0f172a', border: 'none', padding: '10px', fontWeight: 700, borderRadius: '6px', cursor: 'pointer' }}
-                >
-                  {rescheduling ? 'Saving...' : 'Confirm Reschedule'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+  return <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 1080, position: 'relative' }}>
+    <div><span className="page-eyebrow">PROJECT ALPHA • AUTOMATED WORKFLOWS</span><h1 style={{ fontSize: 28, fontWeight: 800, margin: '4px 0 8px', color: '#fff' }}>Smart Task Reminders</h1><p style={{ color: 'var(--text-muted)', fontSize: 14, margin: 0 }}>Schedule a 9:00 AM Lagos-time reminder and share it with approved Mowatek colleagues.</p></div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24 }}>
+      <div className="content-card" style={{ height: 'fit-content' }}><h3 style={{ margin: '0 0 16px', color: '#fff', fontSize: 18 }}>Create New Reminder</h3><form onSubmit={handleAddTask} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Task Title / Client Follow-up<input value={title} onChange={(event) => setTitle(event.target.value)} required placeholder="e.g. Call client regarding quotation feedback" style={inputStyle} /></label>
+        <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Notes / Details (Optional)<textarea value={description} onChange={(event) => setDescription(event.target.value)} rows="3" style={{ ...inputStyle, resize: 'vertical' }} /></label>
+        <div><span style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Reminder Date (9:00 AM Lagos time)</span><div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>{[['Tomorrow', 1], ['In 2 Days', 2], ['In 1 Week', 7]].map(([label, days]) => <button key={label} type="button" onClick={() => setQuickReminder(days)} style={quickButtonStyle}>{label}</button>)}</div><input type="date" value={reminderDate} onChange={(event) => setReminderDate(event.target.value)} required style={inputStyle} /></div>
+        <div><span style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Copy Mowatek Colleagues (Optional)</span><p style={{ fontSize: 11, color: '#64748b', margin: '0 0 8px' }}>Selected active employees receive the email and can manage this shared reminder in their task page.</p><div style={{ maxHeight: 150, overflowY: 'auto', border: '1px solid rgba(255,255,255,.1)', borderRadius: 6, padding: 8 }}>{shareableEmployees.length ? shareableEmployees.map((employee) => { const email = employee.work_email.toLowerCase(); return <label key={email} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 2px', color: '#cbd5e1', fontSize: 12 }}><input type="checkbox" checked={sharedEmails.includes(email)} onChange={() => toggleSharedEmail(email)} /> <span>{employeeName(employee)} <small style={{ color: '#64748b' }}>({email})</small></span></label> }) : <span style={{ color: '#64748b', fontSize: 12 }}>No other active employees are available to copy.</span>}</div></div>
+        <button type="submit" disabled={submitting} style={primaryButtonStyle}>{submitting ? 'Scheduling…' : 'Set Shared Reminder'}</button>
+      </form></div>
+      <div className="content-card"><h3 style={{ margin: '0 0 16px', color: '#fff', fontSize: 18 }}>Your Reminders</h3>{loading ? <p style={{ color: 'var(--text-muted)' }}>Loading reminders…</p> : !tasks.length ? <p style={{ color: 'var(--text-muted)' }}>No reminders scheduled yet.</p> : <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 650, overflowY: 'auto' }}>{tasks.map((task) => { const isCreator = task.creator_email === currentEmail; const copiedEmails = (task.task_participants || []).map((participant) => participant.user_email).filter((email) => email !== task.creator_email); const terminal = ['Completed', 'Cancelled'].includes(task.status); return <div key={task.id} style={{ background: 'rgba(0,0,0,.25)', padding: 14, borderRadius: 8, borderLeft: `4px solid ${terminal ? '#64748b' : 'var(--accent-cyan)'}` }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><strong style={{ color: '#fff', fontSize: 14 }}>{task.title}</strong><span style={{ color: task.status === 'Completed' ? '#10b981' : task.status === 'Sent' ? '#f59e0b' : '#67e8f9', fontSize: 11, fontWeight: 700 }}>{task.status}</span></div>{task.description && <p style={{ margin: '8px 0', color: 'var(--text-muted)', fontSize: 13 }}>{task.description}</p>}<p style={{ margin: '8px 0', color: '#94a3b8', fontSize: 11 }}>⏰ {formatReminderDate(task.reminder_date)} · {deliveryLabel(task)}</p>{copiedEmails.length > 0 && <p style={{ margin: '8px 0', color: '#cbd5e1', fontSize: 11 }}>Copied: {copiedEmails.join(', ')}</p>}{task.status === 'Completed' && <p style={{ margin: '8px 0', color: '#86efac', fontSize: 11 }}>Completed by {task.completed_by_email || 'a participant'}{task.completed_at ? ` on ${formatReminderDate(task.completed_at)}` : ''}</p>}{!terminal && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}><button onClick={() => updateTaskStatus(task, 'Completed')} style={actionButtonStyle}>Complete ✓</button><button onClick={() => openRescheduleModal(task)} style={actionButtonStyle}>Reschedule</button>{isCreator && <button onClick={() => updateTaskStatus(task, 'Cancelled')} style={{ ...actionButtonStyle, color: '#fca5a5', borderColor: 'rgba(239,68,68,.5)' }}>Cancel</button>}</div>}</div> })}</div>}</div>
     </div>
-  )
+    {editingTask && <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}><div className="content-card" style={{ width: '100%', maxWidth: 480, background: '#1e293b' }}><h3 style={{ margin: '0 0 14px', color: '#fff' }}>Reschedule Reminder</h3><form onSubmit={handleReschedule} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{[['Tomorrow', 1], ['In 3 Days', 3], ['In 1 Week', 7]].map(([label, days]) => <button key={label} type="button" onClick={() => setQuickReminder(days, true)} style={quickButtonStyle}>{label}</button>)}</div><input type="date" value={editDate} onChange={(event) => setEditDate(event.target.value)} required style={inputStyle} /><textarea value={editNotes} onChange={(event) => setEditNotes(event.target.value)} rows="3" style={{ ...inputStyle, resize: 'vertical' }} /><div style={{ display: 'flex', gap: 10 }}><button type="button" onClick={() => setEditingTask(null)} style={{ ...actionButtonStyle, flex: 1 }}>Cancel</button><button type="submit" disabled={rescheduling} style={{ ...primaryButtonStyle, flex: 1 }}>{rescheduling ? 'Saving…' : 'Confirm Reschedule'}</button></div></form></div></div>}
+  </div>
 }
