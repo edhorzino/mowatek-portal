@@ -24,6 +24,19 @@ export function ClientFoldersView() {
     setLoading(false)
   }
 
+  const openDocument = async (doc) => {
+    if (!doc.file_path) {
+      alert('This legacy document does not have a stored file path yet.')
+      return
+    }
+    const { data, error } = await supabase.storage.from('mowatek-documents').createSignedUrl(doc.file_path, 60)
+    if (error) {
+      alert(doc.visibility === 'confidential' ? 'This file is restricted. Ask the uploader to grant you access.' : `Could not open document: ${error.message}`)
+      return
+    }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+  }
+
   // Filter documents based on search query or active client folder
   const filteredDocuments = documents.filter(doc => {
     const matchesSearch = 
@@ -140,7 +153,7 @@ export function ClientFoldersView() {
                 {filteredDocuments.map(doc => (
                   <tr key={doc.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                     <td style={{ padding: '12px', fontWeight: 600, color: '#06b6d4' }}>{doc.document_code || doc.doc_number || '—'}</td>
-                    <td style={{ padding: '12px', color: '#fff' }}>{doc.title}</td>
+                    <td style={{ padding: '12px', color: '#fff' }}>{doc.title} {doc.visibility === 'confidential' && <span style={{ color: '#fbbf24', fontSize: '11px', marginLeft: '6px' }}>🔒 Restricted</span>}</td>
                     <td style={{ padding: '12px', color: '#cbd5e1' }}>{doc.client_name || doc.client || '—'}</td>
                     <td style={{ padding: '12px', color: '#cbd5e1' }}>{doc.project || '—'}</td>
                     <td style={{ padding: '12px' }}>
@@ -149,13 +162,7 @@ export function ClientFoldersView() {
                       </span>
                     </td>
                     <td style={{ padding: '12px' }}>
-                      {doc.file_url ? (
-                        <a href={doc.file_url} target="_blank" rel="noopener noreferrer" style={{ color: '#38bdf8', textDecoration: 'none', fontWeight: 600 }}>
-                          Download ↗
-                        </a>
-                      ) : (
-                        <span style={{ color: '#64748b' }}>No File</span>
-                      )}
+                      <button onClick={() => openDocument(doc)} style={{ color: '#38bdf8', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontWeight: 600 }}>View / Download ↗</button>
                     </td>
                   </tr>
                 ))}

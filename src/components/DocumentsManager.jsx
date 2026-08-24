@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { ClientFoldersView } from './ClientFoldersView'
 import { AdminPanel } from './AdminPanel'
 import { MassUploadModal } from './MassUploadModal'
+import { DocumentAccessModal } from './DocumentAccessModal'
 
 export function DocumentsManager() {
   const { user, profile } = useAuth()
@@ -28,6 +29,7 @@ export function DocumentsManager() {
 
   // Mass Upload Modal State
   const [isMassUploadOpen, setIsMassUploadOpen] = useState(false)
+  const [accessDocument, setAccessDocument] = useState(null)
 
   // Upload Form & MWT Codebook State
   const [title, setTitle] = useState('')
@@ -133,17 +135,13 @@ export function DocumentsManager() {
       const fileExt = file.name.split('.').pop()
       const fileName = `${generatedCode}_${version}_${Date.now()}.${fileExt}`
       const folderSlug = isInternal ? 'internal_documents' : targetClient.toLowerCase().replace(/\s+/g, '_')
-      const filePath = `${folderSlug}/${fileName}`
+      const filePath = `documents/${user.id}/${folderSlug}/${fileName}`
 
       const { error: storageError } = await supabase.storage
         .from('mowatek-documents')
         .upload(filePath, file)
 
       if (storageError) throw storageError
-
-      const { data: publicURLData } = supabase.storage
-        .from('mowatek-documents')
-        .getPublicUrl(filePath)
 
       const { error: dbError } = await supabase.from('documents').insert([
         {
@@ -163,10 +161,11 @@ export function DocumentsManager() {
           version,
           status,
           access_level: accessLevel,
-          file_url: publicURLData.publicUrl,
           file_path: filePath,
           file_size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
-          uploaded_by: user?.email || 'Employee'
+          uploaded_by: user?.email || 'Employee',
+          owner_id: user.id,
+          visibility: accessLevel === 'CON' ? 'confidential' : 'company'
         }
       ])
 
@@ -282,7 +281,7 @@ export function DocumentsManager() {
             <h3 style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>Recent Document Additions</h3>
             <p style={{ fontSize: '12px', color: '#94a3b8', margin: '2px 0 0 0' }}>Showing the last 10 ingested files.</p>
           </div>
-          <DocumentTable docs={recentDocuments} loading={loading} />
+          <DocumentTable docs={recentDocuments} loading={loading} user={user} onManageAccess={setAccessDocument} />
         </div>
       )}
 
@@ -308,7 +307,7 @@ export function DocumentsManager() {
               {folderSearchQuery.trim() ? (
                 <div>
                   <p style={{ color: '#06b6d4', fontSize: '13px', marginBottom: '12px' }}>Search results for "{folderSearchQuery}":</p>
-                  <DocumentTable docs={getFolderFilteredDocs(documents)} loading={loading} />
+                  <DocumentTable docs={getFolderFilteredDocs(documents)} loading={loading} user={user} onManageAccess={setAccessDocument} />
                 </div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginTop: '16px' }}>
@@ -339,7 +338,7 @@ export function DocumentsManager() {
             <div>
               <button onClick={() => setSelectedFolderType(null)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', marginBottom: '16px', fontWeight: '600', fontSize: '13px', padding: 0 }}>← Back to Folders</button>
               <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '16px' }}>📁 Internal Documents Directory</h3>
-              <DocumentTable docs={getFolderFilteredDocs(documents.filter(d => d.client_name === 'Internal'))} loading={loading} />
+              <DocumentTable docs={getFolderFilteredDocs(documents.filter(d => d.client_name === 'Internal'))} loading={loading} user={user} onManageAccess={setAccessDocument} />
             </div>
           ) : (
             <div>
@@ -400,7 +399,7 @@ export function DocumentsManager() {
               <option value="HSE">HSE - Health, Safety & Env.</option>
             </select>
           </div>
-          <DocumentTable docs={searchFilteredDocs} loading={loading} />
+          <DocumentTable docs={searchFilteredDocs} loading={loading} user={user} onManageAccess={setAccessDocument} />
         </div>
       )}
 
@@ -583,11 +582,8 @@ export function DocumentsManager() {
                   onChange={(e) => setAccessLevel(e.target.value)}
                   style={{ width: '100%', padding: '12px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', fontSize: '14px', outline: 'none' }}
                 >
-                  <option value="PUB">PUB - Public</option>
-                  <option value="INT">INT - Internal Staff</option>
-                  <option value="DEP">DEP - Department Restricted</option>
-                  <option value="RES">RES - Restricted Project Team</option>
-                  <option value="CON">CON - Confidential Management</option>
+                  <option value="INT">INT - Company-wide</option>
+                  <option value="CON">CON - Confidential (only you until you grant access)</option>
                 </select>
               </div>
             </div>
@@ -617,6 +613,7 @@ export function DocumentsManager() {
       {isMassUploadOpen && (
         <MassUploadModal 
           clients={clients} 
+          user={user}
           onClose={() => setIsMassUploadOpen(false)} 
           onUploadComplete={() => {
             fetchData()
@@ -625,12 +622,26 @@ export function DocumentsManager() {
         />
       )}
 
+      {accessDocument && <DocumentAccessModal document={accessDocument} onClose={() => setAccessDocument(null)} onChanged={() => { setAccessDocument(null); fetchData() }} />}
+
     </div>
   )
 }
 
 // Reusable Table Subcomponent
-function DocumentTable({ docs, loading }) {
+function DocumentTable({ docs, loading, user, onManageAccess }) {
+  const openDocument = async (doc) => {
+    if (!doc.file_path) {
+      alert('This legacy document does not have a stored file path yet.')
+      return
+    }
+    const { data, error } = await supabase.storage.from('mowatek-documents').createSignedUrl(doc.file_path, 60)
+    if (error) {
+      alert(doc.visibility === 'confidential' ? 'This file is restricted. Ask the uploader to grant you access.' : `Could not open document: ${error.message}`)
+      return
+    }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+  }
   if (loading) return <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>Loading vault documents...</div>
   if (docs.length === 0) return <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>No documents found matching your criteria.</div>
 
@@ -668,14 +679,11 @@ function DocumentTable({ docs, loading }) {
                 {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : '—'}
               </td>
               <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                <a 
-                  href={doc.file_url} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  style={{ background: 'rgba(255,255,255,0.08)', border: 'none', color: '#fff', padding: '6px 12px', borderRadius: '6px', textDecoration: 'none', fontWeight: '600', fontSize: '12px' }}
-                >
-                  View / Download
-                </a>
+                <div style={{ display: 'flex', gap: '7px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                  {doc.visibility === 'confidential' && <span style={{ color: '#fbbf24', fontSize: '11px', fontWeight: 700 }}>🔒 Restricted</span>}
+                  <button onClick={() => openDocument(doc)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', color: '#fff', padding: '6px 12px', borderRadius: '6px', textDecoration: 'none', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}>View / Download</button>
+                  {doc.visibility === 'confidential' && doc.owner_id === user?.id && <button onClick={() => onManageAccess(doc)} style={{ background: 'rgba(251,191,36,0.12)', color: '#fcd34d', border: '1px solid rgba(251,191,36,0.3)', padding: '6px 9px', borderRadius: '6px', fontWeight: '650', fontSize: '12px', cursor: 'pointer' }}>Manage access</button>}
+                </div>
               </td>
             </tr>
           ))}

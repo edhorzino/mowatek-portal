@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { supabase } from '../supabaseClient'
 
-export function MassUploadModal({ clients, onClose, onUploadComplete }) {
+export function MassUploadModal({ clients, user, onClose, onUploadComplete }) {
   const [selectedFiles, setSelectedFiles] = useState([])
   const [targetClient, setTargetClient] = useState('')
   const [isInternal, setIsInternal] = useState(false)
   const [defaultCategory, setDefaultCategory] = useState('Technical Report')
+  const [batchVisibility, setBatchVisibility] = useState('company')
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState('')
 
@@ -149,17 +150,13 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
         const fileExt = item.file.name.split('.').pop()
         const uniqueFileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`
         const folderSlug = isInternal ? 'internal_documents' : destination.toLowerCase().replace(/\s+/g, '_')
-        const filePath = `${folderSlug}/${uniqueFileName}`
+        const filePath = `documents/${user.id}/${folderSlug}/${uniqueFileName}`
 
         const { error: storageError } = await supabase.storage
           .from('mowatek-documents')
           .upload(filePath, item.file)
 
         if (storageError) throw storageError
-
-        const { data: publicURLData } = supabase.storage
-          .from('mowatek-documents')
-          .getPublicUrl(filePath)
 
         // Insert metadata satisfying all identified unique sequence and code constraints
         const { error: dbError } = await supabase.from('documents').insert([
@@ -171,11 +168,16 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
             doc_type: typeCode,
             title: item.title,
             client_name: destination,
+            client: destination,
             category: item.category,
-            file_url: publicURLData.publicUrl,
             file_path: filePath,
             file_size: item.size,
-            uploaded_by: 'Staff (Batch Upload)'
+            uploaded_by: user?.email || 'Staff (Batch Upload)',
+            owner_id: user.id,
+            visibility: batchVisibility,
+            access: batchVisibility === 'confidential' ? 'CON' : 'INT',
+            access_level: batchVisibility === 'confidential' ? 'CON' : 'INT',
+            file_name: uniqueFileName
           }
         ])
 
@@ -275,6 +277,14 @@ export function MassUploadModal({ clients, onClose, onUploadComplete }) {
                 <option value="Method Statement">Method Statement</option>
                 <option value="Inspection & Test Plan">Inspection & Test Plan</option>  
               </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Access for this batch</label>
+              <select value={batchVisibility} onChange={(event) => setBatchVisibility(event.target.value)} style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', color: '#fff' }}>
+                <option value="company">Company-wide</option>
+                <option value="confidential">Confidential — only me until I grant access</option>
+              </select>
+              {batchVisibility === 'confidential' && <p style={{ margin: '7px 0 0', color: '#fcd34d', fontSize: '11px', lineHeight: 1.4 }}>All files in this batch will appear as restricted. You can grant staff access to each file from the vault after upload.</p>}
             </div>
           </div>
 
