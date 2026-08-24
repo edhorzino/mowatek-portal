@@ -7,6 +7,7 @@ import { EquipmentPage } from './components/EquipmentPage'
 import { MaintenancePage } from './components/MaintenancePage'
 import { DocumentsPage } from './components/DocumentsPage'
 import { TasksPage } from './components/TasksPage'
+import { CompanyUpdatesPage } from './components/CompanyUpdatesPage'
 import { BrandLogo } from './components/BrandLogo'
 import { supabase } from './lib/supabase'
 import "./App.css";
@@ -19,6 +20,7 @@ const navigationIconPaths = {
   documents: <><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v5h5M9 13h6M9 17h6" /></>,
   maintenance: <path d="m14.7 6.3 3-3a5 5 0 0 1-6.3 6.3L5 16a2.1 2.1 0 0 0 3 3l6.4-6.4a5 5 0 0 1 6.3-6.3l-3 3" />,
   employees: <><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2.5" /><path d="M3.5 20a5.5 5.5 0 0 1 11 0M14 20a4 4 0 0 1 6.5-3.1" /></>,
+  updates: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></>,
 }
 
 function NavigationIcon({ name }) {
@@ -127,6 +129,7 @@ function AppContent() {
 
   const [employees, setEmployees] = useState([])
   const [loadingEmployees, setLoadingEmployees] = useState(true)
+  const [canSendCompanyUpdates, setCanSendCompanyUpdates] = useState(false)
 
   const isAdmin = profile?.role === 'admin'
 
@@ -165,6 +168,18 @@ function AppContent() {
     }
 
     fetchEmployees()
+  }, [user])
+
+  useEffect(() => {
+    async function checkCompanyUpdatePermission() {
+      if (!user) {
+        setCanSendCompanyUpdates(false)
+        return
+      }
+      const { data, error } = await supabase.from('company_update_senders').select('user_id').eq('user_id', user.id).maybeSingle()
+      setCanSendCompanyUpdates(Boolean(data) && !error)
+    }
+    void checkCompanyUpdatePermission()
   }, [user])
 
   if (!user) {
@@ -297,6 +312,8 @@ function AppContent() {
         return <MaintenancePage user={user} />
       case 'documents':
         return <DocumentsPage />
+      case 'company-updates':
+        return canSendCompanyUpdates ? <CompanyUpdatesPage /> : <DashboardHome user={user} employees={employees} loadingEmployees={loadingEmployees} />
       default:
         return <DashboardHome user={user} employees={employees} loadingEmployees={loadingEmployees} />
     }
@@ -396,6 +413,13 @@ function AppContent() {
                   <NavigationIcon name="employees" />
                   Employees
                 </button>
+                {canSendCompanyUpdates && <button
+                  className={`nav-item ${activePage === 'company-updates' ? 'active' : ''}`}
+                  onClick={() => handleNavClick('company-updates')}
+                >
+                  <NavigationIcon name="updates" />
+                  Company Updates
+                </button>}
               </>
             )}
           </nav>
