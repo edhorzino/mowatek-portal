@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
+import { useAuth } from '../context/AuthContext'
+import { DocumentAccessModal } from './DocumentAccessModal'
 
 export function ClientFoldersView() {
+  const { user } = useAuth()
   const [clients, setClients] = useState([])
   const [documents, setDocuments] = useState([])
   const [selectedClientFolder, setSelectedClientFolder] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
+  const [accessDocument, setAccessDocument] = useState(null)
 
   useEffect(() => {
     loadData()
@@ -162,7 +166,10 @@ export function ClientFoldersView() {
                       </span>
                     </td>
                     <td style={{ padding: '12px' }}>
-                      <button onClick={() => openDocument(doc)} style={{ color: '#38bdf8', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontWeight: 600 }}>View / Download ↗</button>
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', whiteSpace: 'nowrap' }}>
+                        <button onClick={() => openDocument(doc)} style={{ color: '#38bdf8', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontWeight: 600 }}>View / Download ↗</button>
+                        {doc.visibility === 'confidential' && doc.owner_id === user?.id && <button onClick={() => setAccessDocument(doc)} style={{ color: '#fcd34d', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.3)', padding: '5px 8px', borderRadius: '6px', cursor: 'pointer', fontWeight: 650, fontSize: '12px' }}>Manage access</button>}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -171,6 +178,7 @@ export function ClientFoldersView() {
           </div>
         )}
       </div>
+      {accessDocument && <DocumentAccessModal document={accessDocument} onClose={() => setAccessDocument(null)} onChanged={() => { setAccessDocument(null); void loadData() }} />}
     </div>
   )
 }
