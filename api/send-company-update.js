@@ -69,25 +69,26 @@ export default async function handler(req, res) {
           { headers: { 'Idempotency-Key': `mowatek-company-update-${update.id}-${email}` } }
         )
         if (error || !data?.id) throw new Error(error?.message || 'Resend did not return an email ID.')
-        return { recipient_email: email, resend_email_id: data.id, status: 'accepted' }
+        return { company_update_id: update.id, recipient_email: email, resend_email_id: data.id, status: 'accepted' }
       } catch (error) {
-        return { recipient_email: email, status: 'failed', error_message: error instanceof Error ? error.message : 'Unknown delivery error.' }
+        return { company_update_id: update.id, recipient_email: email, status: 'failed', error_message: error instanceof Error ? error.message : 'Unknown delivery error.' }
       }
     }))
 
     const acceptedCount = results.filter((result) => result.status === 'accepted').length
     const failedCount = results.length - acceptedCount
     const status = failedCount === 0 ? 'sent' : acceptedCount ? 'partial' : 'failed'
-    const [{ error: deliveryError }, { error: finalUpdateError }] = await Promise.all([
-      supabase.from('company_update_deliveries').insert(results),
-      supabase.from('company_updates').update({ accepted_count: acceptedCount, failed_count: failedCount, status, sent_at: new Date().toISOString() }).eq('id', update.id),
-    ])
+    const { error: deliveryError } = await supabase.from('company_update_deliveries').insert(results)
     if (deliveryError) throw deliveryError
+    const { error: finalUpdateError } = await supabase
+      .from('company_updates')
+      .update({ accepted_count: acceptedCount, failed_count: failedCount, status, sent_at: new Date().toISOString() })
+      .eq('id', update.id)
     if (finalUpdateError) throw finalUpdateError
 
     return res.status(200).json({ success: true, recipientCount: recipients.length, acceptedCount, failedCount })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown company update error.'
+    const message = error instanceof Error ? error.message : (error?.message || JSON.stringify(error))
     console.error('Failed to send company update:', message)
     return res.status(500).json({ error: 'Company update could not be sent. No retry was sent automatically.' })
   }
