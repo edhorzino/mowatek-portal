@@ -11,6 +11,7 @@ export function EquipmentTable({ equipmentList = [], loading, isAdmin = false, o
   const [confirmModalItem, setConfirmModalItem] = useState(null)
   const [reportFile, setReportFile] = useState(null)
   const [invoiceFile, setInvoiceFile] = useState(null)
+  const [maintenanceNotes, setMaintenanceNotes] = useState('')
   const [uploading, setUploading] = useState(false)
 
   // Compute status based on exact interval rules
@@ -19,7 +20,7 @@ export function EquipmentTable({ equipmentList = [], loading, isAdmin = false, o
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
-    const next = new Date(nextDateStr)
+    const next = new Date(`${nextDateStr}T00:00:00`)
     if (isNaN(next)) return 'OK'
 
     const diffDays = Math.ceil((next - today) / (1000 * 60 * 60 * 24))
@@ -29,33 +30,11 @@ export function EquipmentTable({ equipmentList = [], loading, isAdmin = false, o
     return 'OK'
   }
 
-  const calculateNextDate = (fromDate, frequency) => {
-    const date = new Date(fromDate)
-    const freq = frequency?.toUpperCase() || 'MONTHLY'
-
-    if (freq === 'BIWEEKLY') {
-      date.setDate(date.getDate() + 14)
-    } else if (freq === 'WEEKLY') {
-      date.setDate(date.getDate() + 7)
-    } else if (freq === 'MONTHLY') {
-      date.setMonth(date.getMonth() + 1)
-    } else if (freq === 'BIMONTHLY') {
-      date.setMonth(date.getMonth() + 2)
-    } else if (freq === 'QUARTERLY') {
-      date.setMonth(date.getMonth() + 3)
-    } else if (freq === 'ANNUALLY' || freq === 'YEARLY') {
-      date.setFullYear(date.getFullYear() + 1)
-    } else {
-      date.setMonth(date.getMonth() + 1)
-    }
-
-    return date.toISOString().split('T')[0]
-  }
-
   const handleOpenConfirmModal = (item) => {
     setConfirmModalItem(item)
     setReportFile(null)
     setInvoiceFile(null)
+    setMaintenanceNotes('')
   }
 
   const handleConfirmMaintenanceSubmit = async (e) => {
@@ -67,19 +46,16 @@ export function EquipmentTable({ equipmentList = [], loading, isAdmin = false, o
 
     setUploading(true)
     try {
-      const todayStr = new Date().toISOString().split('T')[0]
-      const nextStr = calculateNextDate(todayStr, confirmModalItem.maintenance_frequency || confirmModalItem.maintenanceFrequency)
-      
       await onCompleteMaintenance?.(confirmModalItem, {
         reportFile,
         invoiceFile,
-        completedDate: todayStr,
-        nextMaintenanceDate: nextStr,
+        notes: maintenanceNotes,
       })
 
       setConfirmModalItem(null)
       setReportFile(null)
       setInvoiceFile(null)
+      setMaintenanceNotes('')
       alert('Maintenance successfully confirmed, logged, and report archived.')
     } catch (err) {
       console.error(err)
@@ -119,7 +95,7 @@ export function EquipmentTable({ equipmentList = [], loading, isAdmin = false, o
   }, [equipmentList, search, statusFilter, clientFilter])
 
   const pendingInvoicesCount = useMemo(() => {
-    return equipmentList.filter(i => i.invoice_status === 'PENDING' || !i.invoice_status).length
+    return equipmentList.filter(i => !i.invoice_path && !i.invoice_url).length
   }, [equipmentList])
 
   const handleStartEdit = (item) => {
@@ -138,9 +114,13 @@ export function EquipmentTable({ equipmentList = [], loading, isAdmin = false, o
     })
   }
 
-  const handleSaveEdit = (id) => {
-    if (onUpdate) onUpdate(id, editFormData)
-    setEditingId(null)
+  const handleSaveEdit = async (id) => {
+    try {
+      await onUpdate?.(id, editFormData)
+      setEditingId(null)
+    } catch (error) {
+      alert(`Unable to update asset: ${error.message}`)
+    }
   }
 
   if (loading) return <div className="empty-state">Loading equipment records...</div>
@@ -216,6 +196,17 @@ export function EquipmentTable({ equipmentList = [], loading, isAdmin = false, o
                   accept=".pdf,.doc,.docx,.jpg,.png"
                   onChange={(e) => setInvoiceFile(e.target.files[0])}
                   style={{ width: '100%', fontSize: '12px', color: '#fff' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>Service notes (optional)</label>
+                <textarea
+                  value={maintenanceNotes}
+                  onChange={(e) => setMaintenanceNotes(e.target.value)}
+                  rows="3"
+                  placeholder="Work performed, readings, or follow-up notes"
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px', background: '#020617', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', resize: 'vertical' }}
                 />
               </div>
 
@@ -334,7 +325,7 @@ export function EquipmentTable({ equipmentList = [], loading, isAdmin = false, o
                         {invoiceStatus === 'CASHED' ? 'INVOICE CASHED' : invoiceStatus === 'UPLOADED' ? 'INVOICE UPLOADED' : 'INVOICE PENDING'}
                       </span>
                       
-                      {isAdmin && item.invoice_url && (
+                      {isAdmin && (item.invoice_path || item.invoice_url) && (
                         <button
                           onClick={() => handleToggleInvoiceCashed(item)}
                           style={{ background: 'transparent', border: 'none', color: '#38bdf8', fontSize: '10px', cursor: 'pointer', textAlign: 'left', padding: 0, textDecoration: 'underline' }}
@@ -353,8 +344,8 @@ export function EquipmentTable({ equipmentList = [], loading, isAdmin = false, o
                       >
                         ✓ Maint. Done
                       </button>
-                      <button onClick={() => handleStartEdit(item)} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>Edit</button>
-                      <button onClick={() => onDelete && onDelete(item.id)} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>Delete</button>
+                      {isAdmin && <button onClick={() => handleStartEdit(item)} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>Edit</button>}
+                      {isAdmin && <button onClick={() => onDelete && onDelete(item.id)} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>Delete</button>}
                     </div>
                   </td>
                 </tr>

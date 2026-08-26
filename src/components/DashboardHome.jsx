@@ -64,32 +64,22 @@ export function DashboardHome({ employees = [] }) {
   // 1. Total Equipment: Counts all assets currently in the equipment directory
   const totalEquipment = equipmentList.length
 
-  // 2. Dynamic Maintenance Due Soon Count based on Frequency Rules
+  // Uses the same seven-day due window as the equipment registry and includes
+  // overdue assets so the dashboard cannot hide urgent maintenance.
   const upcomingMaintenanceCount = equipmentList.filter(item => {
-    // Check various common date property names in your schema
-    const dateStr = item.next_maintenance || item.nextMaintenance || item.maintenanceDate || item.due_date || item.next_service_date || item.lastServiceDate
+    const dateStr = item.next_maintenance
     if (!dateStr) return false
 
-    const dueDate = new Date(dateStr)
+    const dueDate = new Date(`${dateStr}T00:00:00`)
     if (isNaN(dueDate.getTime())) return false
 
     const today = new Date()
-    
-    // Determine threshold days based on maintenance frequency
-    const frequency = (item.maintenance_frequency || item.frequency || item.maintenanceFrequency || '').toLowerCase()
-    let thresholdDays = 30 // Default for quarterly, 6 months, annual, etc.
-
-    if (frequency.includes('bi-weekly') || frequency.includes('biweekly') || frequency.includes('fortnight')) {
-      thresholdDays = 7
-    } else if (frequency.includes('monthly')) {
-      thresholdDays = 15
-    }
-
+    today.setHours(0, 0, 0, 0)
     const thresholdDate = new Date()
-    thresholdDate.setDate(today.getDate() + thresholdDays)
+    thresholdDate.setHours(0, 0, 0, 0)
+    thresholdDate.setDate(today.getDate() + 7)
 
-    // Check if due date is between today and the dynamic threshold
-    return dueDate >= today && dueDate <= thresholdDate
+    return dueDate <= thresholdDate
   }).length
 
   const totalDocs = documents.length
@@ -173,7 +163,7 @@ export function DashboardHome({ employees = [] }) {
               {upcomingMaintenanceCount}
             </div>
             <span style={{ fontSize: '12px', color: '#f59e0b', fontWeight: 500 }}>
-              ▲ Due Soon (Smart Thresholds)
+              ▲ Due or Overdue
             </span>
           </div>
 
