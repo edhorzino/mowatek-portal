@@ -89,34 +89,6 @@ export function MassUploadModal({ clients, user, onClose, onUploadComplete }) {
     setSelectedFiles(prev => prev.filter(item => item.id !== id))
   }
 
-  const getNextSequenceNumber = async (typeCode, year) => {
-    const prefix = `MWT-${typeCode}-${year}-`
-    const { data, error } = await supabase
-      .from('documents')
-      .select('doc_number, document_code')
-
-    if (error) {
-      console.error('Error fetching existing document numbers:', error)
-      return Math.floor(100 + Math.random() * 900)
-    }
-
-    let maxSeq = 0
-    if (data && data.length > 0) {
-      data.forEach(row => {
-        const val = row.doc_number || row.document_code
-        if (val && val.startsWith(prefix)) {
-          const parts = val.split('-')
-          const seqStr = parts[parts.length - 1]
-          const seqNum = parseInt(seqStr, 10)
-          if (!isNaN(seqNum) && seqNum > maxSeq) {
-            maxSeq = seqNum
-          }
-        }
-      })
-    }
-    return maxSeq + 1
-  }
-
   const executeMassUpload = async () => {
     const destination = isInternal ? 'Internal' : targetClient
     if (!destination || selectedFiles.length === 0) {
@@ -129,23 +101,27 @@ export function MassUploadModal({ clients, user, onClose, onUploadComplete }) {
 
     try {
       const currentYear = new Date().getFullYear()
-      const batchCounters = {}
-
       for (let i = 0; i < selectedFiles.length; i++) {
         const item = selectedFiles[i]
         setUploadProgress(`Processing file ${i + 1} of ${selectedFiles.length}: ${item.title}`)
 
         const typeCode = categoryToTypeCode(item.category)
         
-        if (!batchCounters[typeCode]) {
-          const nextDbSeq = await getNextSequenceNumber(typeCode, currentYear)
-          batchCounters[typeCode] = nextDbSeq
-        } else {
-          batchCounters[typeCode] += 1
+        const { data: reservationData, error: reservationError } = await supabase
+          .rpc('reserve_document_code', {
+            p_category: typeCode,
+            p_document_year: currentYear
+          })
+
+        if (reservationError) throw reservationError
+
+        const reservation = Array.isArray(reservationData) ? reservationData[0] : reservationData
+        if (!reservation?.document_code || !reservation?.serial_number) {
+          throw new Error('Could not reserve a document code. Please try again.')
         }
 
-        const sequentialId = String(batchCounters[typeCode]).padStart(3, '0')
-        const docNumber = `MWT-${typeCode}-${currentYear}-${sequentialId}`
+        const docNumber = reservation.document_code
+        const sequentialId = reservation.serial_number
 
         const fileExt = item.file.name.split('.').pop()
         const uniqueFileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`

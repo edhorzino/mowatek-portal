@@ -51,39 +51,11 @@ export function DocumentsManager() {
     fetchData()
   }, [])
 
-  // Automatically compute and generate document code: MWT-[DocType]-[Year]-[Serial] according to Codebook
+  // The database reserves the final serial only when Upload is pressed. This
+  // preview avoids consuming numbers while a staff member is filling the form.
   useEffect(() => {
-    const fetchNextSerialAndGenerateCode = async () => {
-      try {
-        const prefix = `MWT-${category}-${documentYear}`
-        
-        const { data, error } = await supabase
-          .from('documents')
-          .select('serial_number')
-          .ilike('document_code', `${prefix}%`)
-          .order('created_at', { ascending: false })
-          .limit(1)
-
-        let nextNum = 1
-        if (data && data.length > 0 && data[0].serial_number) {
-          const parsed = parseInt(data[0].serial_number, 10)
-          if (!isNaN(parsed)) {
-            nextNum = parsed + 1
-          }
-        }
-
-        const paddedSerial = String(nextNum).padStart(3, '0')
-        setSerialNumber(paddedSerial)
-        setGeneratedCode(`${prefix}-${paddedSerial}`)
-      } catch (err) {
-        console.error('Error fetching serial number sequence:', err)
-        const fallbackSerial = '001'
-        setSerialNumber(fallbackSerial)
-        setGeneratedCode(`MWT-${category}-${documentYear}-${fallbackSerial}`)
-      }
-    }
-
-    fetchNextSerialAndGenerateCode()
+    setSerialNumber('Reserved on upload')
+    setGeneratedCode(`MWT-${category}-${documentYear}-PENDING`)
   }, [category, documentYear])
 
   const fetchData = async () => {
@@ -132,8 +104,23 @@ export function DocumentsManager() {
 
     setUploading(true)
     try {
+      const { data: reservationData, error: reservationError } = await supabase
+        .rpc('reserve_document_code', {
+          p_category: category,
+          p_document_year: Number(documentYear)
+        })
+
+      if (reservationError) throw reservationError
+
+      const reservation = Array.isArray(reservationData) ? reservationData[0] : reservationData
+      if (!reservation?.document_code || !reservation?.serial_number) {
+        throw new Error('Could not reserve a document code. Please try again.')
+      }
+
+      const finalCode = reservation.document_code
+      const finalSerial = reservation.serial_number
       const fileExt = file.name.split('.').pop()
-      const fileName = `${generatedCode}_${version}_${Date.now()}.${fileExt}`
+      const fileName = `${finalCode}_${version}_${Date.now()}.${fileExt}`
       const folderSlug = isInternal ? 'internal_documents' : targetClient.toLowerCase().replace(/\s+/g, '_')
       const filePath = `documents/${user.id}/${folderSlug}/${fileName}`
 
@@ -146,18 +133,18 @@ export function DocumentsManager() {
       const { error: dbError } = await supabase.from('documents').insert([
         {
           // Legacy fields remain required by the existing documents table.
-          doc_number: generatedCode,
+          doc_number: finalCode,
           doc_type: category,
           client: targetClient,
           access: accessLevel,
           file_name: fileName,
-          document_code: generatedCode,
+          document_code: finalCode,
           title,
           client_name: targetClient,
           category,
           department,
           year: documentYear,
-          serial_number: serialNumber,
+          serial_number: finalSerial,
           version,
           status,
           access_level: accessLevel,
@@ -171,7 +158,9 @@ export function DocumentsManager() {
 
       if (dbError) throw dbError
 
-      alert(`Document successfully registered and uploaded under code: ${generatedCode} (${version})`)
+      setGeneratedCode(finalCode)
+      setSerialNumber(finalSerial)
+      alert(`Document successfully registered and uploaded under code: ${finalCode} (${version})`)
       setTitle('')
       setFile(null)
       setSelectedClient('')
@@ -593,7 +582,9 @@ export function DocumentsManager() {
               <label style={{ display: 'block', fontSize: '12px', color: '#06b6d4', marginBottom: '6px', fontWeight: '600' }}>⚡ MWT Codebook Reference ID (Auto-Sequenced)</label>
               <div style={{ width: '100%', background: 'rgba(6, 182, 212, 0.08)', border: '1px solid rgba(6, 182, 212, 0.4)', borderRadius: '8px', padding: '12px 14px', fontFamily: 'monospace', color: '#06b6d4', fontWeight: 'bold', fontSize: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box' }}>
                 <span>{generatedCode}</span>
-                <span style={{ fontSize: '11px', background: 'rgba(6, 182, 212, 0.2)', padding: '2px 8px', borderRadius: '4px' }}>Serial: {serialNumber} | {version}</span>
+                <span style={{ fontSize: '11px', background: 'rgba(6, 182, 212, 0.2)', padding: '2px 8px', borderRadius: '4px' }}>
+                  {serialNumber === 'Reserved on upload' ? `Final serial reserved on upload | ${version}` : `Serial: ${serialNumber} | ${version}`}
+                </span>
               </div>
             </div>
 
