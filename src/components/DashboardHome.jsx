@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import { useEmployeeProfile } from '../hooks/useEmployeeProfile'
 
-export function DashboardHome({ employees = [] }) {
+export function DashboardHome({ employees = [], isAdmin = false }) {
   const { profile, loading: profileLoading } = useEmployeeProfile()
   
   const totalEmployees = employees.length
@@ -18,7 +18,7 @@ export function DashboardHome({ employees = [] }) {
     fetchLiveEquipment()
     fetchLiveDocuments()
     fetchLiveSessions()
-  }, [])
+  }, [isAdmin])
 
   const fetchLiveEquipment = async () => {
     try {
@@ -46,6 +46,12 @@ export function DashboardHome({ employees = [] }) {
   }
 
   const fetchLiveSessions = async () => {
+    if (!isAdmin) {
+      setActiveSessions([])
+      setLoadingSessions(false)
+      return
+    }
+
     try {
       const { data, error } = await supabase
         .from('user_sessions')
@@ -186,7 +192,7 @@ export function DashboardHome({ employees = [] }) {
         <div className="dashboard-analytics-grid">
           
           {/* Left Column: Live Staff Logins & Sessions */}
-          <div className="content-card" style={{ margin: 0, boxSizing: 'border-box', overflowX: 'auto' }}>
+          {isAdmin && <div className="content-card" style={{ margin: 0, boxSizing: 'border-box', overflowX: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '8px' }}>
               <div>
                 <h3 style={{ fontSize: '16px', margin: 0, color: '#fff' }}>Active Personnel Logins</h3>
@@ -222,7 +228,7 @@ export function DashboardHome({ employees = [] }) {
                 ))}
               </div>
             )}
-          </div>
+          </div>}
 
           {/* Right Column: Document Vault Metrics */}
           <div className="content-card" style={{ margin: 0, boxSizing: 'border-box' }}>

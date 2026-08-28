@@ -291,7 +291,7 @@ function AppContent() {
   const renderPage = () => {
     switch (activePage) {
       case 'dashboard':
-        return <DashboardHome user={user} employees={employees} loadingEmployees={loadingEmployees} />
+        return <DashboardHome user={user} employees={employees} loadingEmployees={loadingEmployees} isAdmin={isAdmin} />
       case 'tasks':
         return <TasksPage user={user} />
       case 'profile':
@@ -313,9 +313,9 @@ function AppContent() {
       case 'documents':
         return <DocumentsPage />
       case 'company-updates':
-        return canSendCompanyUpdates ? <CompanyUpdatesPage /> : <DashboardHome user={user} employees={employees} loadingEmployees={loadingEmployees} />
+        return canSendCompanyUpdates ? <CompanyUpdatesPage /> : <DashboardHome user={user} employees={employees} loadingEmployees={loadingEmployees} isAdmin={isAdmin} />
       default:
-        return <DashboardHome user={user} employees={employees} loadingEmployees={loadingEmployees} />
+        return <DashboardHome user={user} employees={employees} loadingEmployees={loadingEmployees} isAdmin={isAdmin} />
     }
   }
 
