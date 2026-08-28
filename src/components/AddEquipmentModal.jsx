@@ -84,6 +84,8 @@ export function AddEquipmentModal({ onAdd, onClose }) {
       client_contact: formData.client_contact.trim() || null,
       site_engineer: formData.site_engineer.trim() || null,
       site_engr_contact: formData.site_engr_contact.trim() || null,
+      invoice_status: 'AWAITING_MAINTENANCE',
+      invoice_cashed: false,
     }
 
     setIsSaving(true)

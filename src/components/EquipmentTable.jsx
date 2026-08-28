@@ -65,13 +65,11 @@ export function EquipmentTable({ equipmentList = [], loading, isAdmin = false, o
     }
   }
 
-  const handleToggleInvoiceCashed = (item) => {
-    const newCashedState = !item.invoice_cashed
-    if (onUpdate) {
-      onUpdate(item.id, {
-        invoice_cashed: newCashedState,
-        invoice_status: newCashedState ? 'CASHED' : 'UPLOADED'
-      })
+  const handleMarkInvoiceCashed = async (item) => {
+    try {
+      await onUpdate?.(item.id, { invoice_cashed: true })
+    } catch (error) {
+      alert(`Unable to mark invoice as cashed: ${error.message}`)
     }
   }
 
@@ -95,7 +93,7 @@ export function EquipmentTable({ equipmentList = [], loading, isAdmin = false, o
   }, [equipmentList, search, statusFilter, clientFilter])
 
   const pendingInvoicesCount = useMemo(() => {
-    return equipmentList.filter(i => !i.invoice_path && !i.invoice_url).length
+    return equipmentList.filter(i => i.invoice_status === 'PENDING').length
   }, [equipmentList])
 
   const handleStartEdit = (item) => {
@@ -252,7 +250,7 @@ export function EquipmentTable({ equipmentList = [], loading, isAdmin = false, o
               const isEditing = editingId === item.id
               const nextMaintDate = item.next_maintenance || item.nextMaintenance
               const status = calculateStatus(nextMaintDate)
-              const invoiceStatus = item.invoice_status || 'PENDING'
+              const invoiceStatus = item.invoice_status || 'AWAITING_MAINTENANCE'
 
               if (isEditing) {
                 return (
@@ -319,18 +317,18 @@ export function EquipmentTable({ equipmentList = [], loading, isAdmin = false, o
                         fontSize: '10px',
                         fontWeight: 'bold',
                         width: 'fit-content',
-                        background: invoiceStatus === 'CASHED' ? '#064e3b' : invoiceStatus === 'UPLOADED' ? '#1e3a8a' : '#78350f',
-                        color: invoiceStatus === 'CASHED' ? '#6ee7b7' : invoiceStatus === 'UPLOADED' ? '#93c5fd' : '#fde047',
+                        background: invoiceStatus === 'UPLOADED' ? '#1e3a8a' : invoiceStatus === 'PENDING' ? '#78350f' : '#334155',
+                        color: invoiceStatus === 'UPLOADED' ? '#93c5fd' : invoiceStatus === 'PENDING' ? '#fde047' : '#cbd5e1',
                       }}>
-                        {invoiceStatus === 'CASHED' ? 'INVOICE CASHED' : invoiceStatus === 'UPLOADED' ? 'INVOICE UPLOADED' : 'INVOICE PENDING'}
+                        {invoiceStatus === 'UPLOADED' ? 'INVOICE UPLOADED' : invoiceStatus === 'PENDING' ? 'INVOICE PENDING' : 'AWAITING MAINTENANCE'}
                       </span>
                       
-                      {isAdmin && (item.invoice_path || item.invoice_url) && (
+                      {isAdmin && invoiceStatus === 'UPLOADED' && (item.invoice_path || item.invoice_url) && (
                         <button
-                          onClick={() => handleToggleInvoiceCashed(item)}
+                          onClick={() => handleMarkInvoiceCashed(item)}
                           style={{ background: 'transparent', border: 'none', color: '#38bdf8', fontSize: '10px', cursor: 'pointer', textAlign: 'left', padding: 0, textDecoration: 'underline' }}
                         >
-                          {item.invoice_cashed ? 'Mark Uncashed' : 'Mark Cashed'}
+                          Mark Cashed
                         </button>
                       )}
                     </div>

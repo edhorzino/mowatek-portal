@@ -94,18 +94,20 @@ export function EquipmentPage({ isAdmin = false }) {
 
   const handleUpdate = async (id, updatedFields) => {
     const payload = normaliseEquipmentPayload(updatedFields)
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('equipment')
       .update(payload)
       .eq('id', id)
+      .select()
+      .single()
 
     if (error) {
       if (error.code === '23505') throw new Error(`Asset ID ${payload.asset_id} already exists. Use a different manually assigned asset ID.`)
       throw error
     }
-    setEquipmentList(prev => prev.map(e => e.id === id ? { ...e, ...payload } : e))
+    setEquipmentList(prev => prev.map(e => e.id === id ? { ...e, ...data } : e))
     if (selectedAssetHistory && selectedAssetHistory.id === id) {
-      setSelectedAssetHistory(prev => ({ ...prev, ...payload }))
+      setSelectedAssetHistory(prev => ({ ...prev, ...data }))
     }
   }
 
