@@ -2,7 +2,7 @@ import { useState } from 'react'
 
 export function AddEquipmentModal({ onAdd, onClose }) {
   const [formData, setFormData] = useState({
-    asset_id: `MT${Math.floor(100 + Math.random() * 900)}`,
+    asset_id: '',
     client: '',
     site: '',
     equipment: 'PUMPS',
@@ -27,6 +27,8 @@ export function AddEquipmentModal({ onAdd, onClose }) {
   // State to track if user chose "ADD_NEW" and what they are typing for the custom name
   const [isAddingNewType, setIsAddingNewType] = useState(false)
   const [newCustomType, setNewCustomType] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [submitError, setSubmitError] = useState('')
 
   // Auto-calculate Next Maintenance Date based on Last Maintenance & Frequency
   const handleLastMaintenanceChange = (dateVal, freqVal) => {
@@ -55,8 +57,11 @@ export function AddEquipmentModal({ onAdd, onClose }) {
     }
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
+    if (isSaving) return
+
+    setSubmitError('')
 
     // Finalize equipment value if custom type was entered
     let finalEquipment = formData.equipment
@@ -69,15 +74,32 @@ export function AddEquipmentModal({ onAdd, onClose }) {
 
     const payload = {
       ...formData,
-      equipment: finalEquipment
+      asset_id: formData.asset_id.trim().toUpperCase(),
+      client: formData.client.trim(),
+      site: formData.site.trim(),
+      equipment: finalEquipment,
+      installation_date: formData.installation_date || null,
+      last_maintenance: formData.last_maintenance || null,
+      next_maintenance: formData.next_maintenance || null,
+      client_contact: formData.client_contact.trim() || null,
+      site_engineer: formData.site_engineer.trim() || null,
+      site_engr_contact: formData.site_engr_contact.trim() || null,
     }
 
-    onAdd(payload)
+    setIsSaving(true)
+    try {
+      await onAdd(payload)
+    } catch (error) {
+      setSubmitError(error.message || 'Unable to save the equipment record. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
     <div className="add-modal-card" style={{ background: '#1e293b', padding: '24px', borderRadius: '12px', marginBottom: '24px', border: '1px solid rgba(255,255,255,0.1)' }}>
       <h3 style={{ margin: '0 0 16px 0', color: '#f8fafc', fontSize: '16px' }}>Add Equipment Record</h3>
+      {submitError && <p role="alert" style={{ margin: '-8px 0 16px', color: '#fca5a5', fontSize: '13px' }}>{submitError}</p>}
 
       <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
         <div>
@@ -85,6 +107,7 @@ export function AddEquipmentModal({ onAdd, onClose }) {
           <input
             required
             type="text"
+            placeholder="e.g. MT0010"
             value={formData.asset_id}
             onChange={(e) => setFormData({ ...formData, asset_id: e.target.value })}
             style={{ width: '100%', padding: '8px', background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', color: '#fff' }}
@@ -239,11 +262,11 @@ export function AddEquipmentModal({ onAdd, onClose }) {
         </div>
 
         <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
-          <button type="button" onClick={onClose} style={{ padding: '8px 16px', background: '#475569', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+          <button type="button" onClick={onClose} disabled={isSaving} style={{ padding: '8px 16px', background: '#475569', color: '#fff', border: 'none', borderRadius: '6px', cursor: isSaving ? 'not-allowed' : 'pointer', opacity: isSaving ? 0.65 : 1 }}>
             Cancel
           </button>
-          <button type="submit" className="btn-primary" style={{ padding: '8px 20px', background: '#059669', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>
-            Save Asset Record
+          <button type="submit" disabled={isSaving} className="btn-primary" style={{ padding: '8px 20px', background: '#059669', color: '#fff', border: 'none', borderRadius: '6px', cursor: isSaving ? 'wait' : 'pointer', fontWeight: 600, opacity: isSaving ? 0.65 : 1 }}>
+            {isSaving ? 'Saving Asset Record...' : 'Save Asset Record'}
           </button>
         </div>
       </form>

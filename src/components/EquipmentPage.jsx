@@ -5,6 +5,31 @@ import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { addSignedMaintenanceUrls, completeMaintenance, createMaintenanceFileUrl } from '../services/maintenanceService'
 
+const DATE_FIELDS = ['installation_date', 'last_maintenance', 'next_maintenance']
+const OPTIONAL_TEXT_FIELDS = ['client_contact', 'site_engineer', 'site_engr_contact']
+const REQUIRED_TEXT_FIELDS = ['asset_id', 'client', 'site', 'equipment']
+
+function normaliseEquipmentPayload(record) {
+  const payload = { ...record }
+
+  for (const field of DATE_FIELDS) {
+    if (Object.hasOwn(payload, field)) payload[field] = payload[field] || null
+  }
+
+  for (const field of OPTIONAL_TEXT_FIELDS) {
+    if (Object.hasOwn(payload, field)) payload[field] = String(payload[field] || '').trim() || null
+  }
+
+  for (const field of REQUIRED_TEXT_FIELDS) {
+    if (!Object.hasOwn(payload, field)) continue
+    payload[field] = String(payload[field] || '').trim()
+    if (!payload[field]) throw new Error(`${field.replace('_', ' ')} is required.`)
+  }
+
+  if (Object.hasOwn(payload, 'asset_id')) payload.asset_id = payload.asset_id.toUpperCase()
+  return payload
+}
+
 // --- PageHeader Helper Component ---
 function PageHeader({ eyebrow, title, description, action }) {
   return (
@@ -50,31 +75,37 @@ export function EquipmentPage({ isAdmin = false }) {
   }
 
   const handleAdd = async (newItem) => {
+    const payload = normaliseEquipmentPayload(newItem)
     const { data, error } = await supabase
       .from('equipment')
-      .insert([newItem])
+      .insert([payload])
       .select()
 
     if (error) {
-      alert('Error adding equipment: ' + error.message)
+      if (error.code === '23505') {
+        throw new Error(`Asset ID ${payload.asset_id} already exists. Use the next manually assigned asset ID.`)
+      }
+      throw error
     } else if (data) {
-      setEquipmentList([data[0], ...equipmentList])
+      setEquipmentList(prev => [data[0], ...prev])
       setShowAddForm(false)
     }
   }
 
   const handleUpdate = async (id, updatedFields) => {
+    const payload = normaliseEquipmentPayload(updatedFields)
     const { error } = await supabase
       .from('equipment')
-      .update(updatedFields)
+      .update(payload)
       .eq('id', id)
 
     if (error) {
+      if (error.code === '23505') throw new Error(`Asset ID ${payload.asset_id} already exists. Use a different manually assigned asset ID.`)
       throw error
     }
-    setEquipmentList(prev => prev.map(e => e.id === id ? { ...e, ...updatedFields } : e))
+    setEquipmentList(prev => prev.map(e => e.id === id ? { ...e, ...payload } : e))
     if (selectedAssetHistory && selectedAssetHistory.id === id) {
-      setSelectedAssetHistory(prev => ({ ...prev, ...updatedFields }))
+      setSelectedAssetHistory(prev => ({ ...prev, ...payload }))
     }
   }
 
@@ -108,7 +139,7 @@ export function EquipmentPage({ isAdmin = false }) {
     if (error) {
       alert('Error deleting equipment: ' + error.message)
     } else {
-      setEquipmentList(equipmentList.filter(e => e.id !== id))
+      setEquipmentList(prev => prev.filter(e => e.id !== id))
       setSelectedAssetHistory(null)
     }
   }
