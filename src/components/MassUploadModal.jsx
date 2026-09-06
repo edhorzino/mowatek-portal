@@ -49,7 +49,8 @@ export function MassUploadModal({ clients, user, onClose, onUploadComplete }) {
       'Quality Control': 'QC',
       'Non-Conformance Report': 'NCR',
       'Method Statement': 'MS',
-      'Inspection & Test Plan': 'ITP'
+      'Inspection & Test Plan': 'ITP',
+      'Tax Return': 'TAX'
     }
     return mapping[category] || 'RPT'
   }
@@ -90,7 +91,8 @@ export function MassUploadModal({ clients, user, onClose, onUploadComplete }) {
   }
 
   const executeMassUpload = async () => {
-    const destination = isInternal ? 'Internal' : targetClient
+    const hasOnlyTaxReturns = selectedFiles.length > 0 && selectedFiles.every(item => item.category === 'Tax Return')
+    const destination = (isInternal || hasOnlyTaxReturns) ? 'Internal' : targetClient
     if (!destination || selectedFiles.length === 0) {
       alert('Please select a destination folder and at least one file.')
       return
@@ -125,7 +127,9 @@ export function MassUploadModal({ clients, user, onClose, onUploadComplete }) {
 
         const fileExt = item.file.name.split('.').pop()
         const uniqueFileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`
-        const folderSlug = isInternal ? 'internal_documents' : destination.toLowerCase().replace(/\s+/g, '_')
+        const isTaxReturn = item.category === 'Tax Return'
+        const itemDestination = isTaxReturn ? 'Internal' : destination
+        const folderSlug = isTaxReturn ? 'internal_documents/tax_returns' : ((isInternal || itemDestination === 'Internal') ? 'internal_documents' : itemDestination.toLowerCase().replace(/\s+/g, '_'))
         const filePath = `documents/${user.id}/${folderSlug}/${uniqueFileName}`
 
         const { error: storageError } = await supabase.storage
@@ -143,8 +147,8 @@ export function MassUploadModal({ clients, user, onClose, onUploadComplete }) {
             year: currentYear,
             doc_type: typeCode,
             title: item.title,
-            client_name: destination,
-            client: destination,
+            client_name: itemDestination,
+            client: itemDestination,
             category: item.category,
             file_path: filePath,
             file_size: item.size,
@@ -189,11 +193,11 @@ export function MassUploadModal({ clients, user, onClose, onUploadComplete }) {
               <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Target Vault / Folder *</label>
               <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '8px' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={isInternal} onChange={(e) => setIsInternal(e.target.checked)} />
-                  Internal Documents
+                  <input type="checkbox" checked={isInternal || defaultCategory === 'Tax Return'} disabled={defaultCategory === 'Tax Return'} onChange={(e) => setIsInternal(e.target.checked)} />
+                  {defaultCategory === 'Tax Return' ? 'Tax Returns → Internal Documents' : 'Internal Documents'}
                 </label>
               </div>
-              {!isInternal && (
+              {!isInternal && defaultCategory !== 'Tax Return' && (
                 <select 
                   value={targetClient} 
                   onChange={(e) => setTargetClient(e.target.value)}
@@ -217,6 +221,7 @@ export function MassUploadModal({ clients, user, onClose, onUploadComplete }) {
               >
                 <option value="Quotation">Quotation</option>
                 <option value="Invoice">Invoice</option>
+                <option value="Tax Return">Tax Return</option>
                 <option value="Technical Report">Technical Report</option>
                 <option value="Tender Spec">Tender Spec</option>
                 <option value="Contract">Contract</option>
@@ -318,6 +323,7 @@ export function MassUploadModal({ clients, user, onClose, onUploadComplete }) {
                           >
                             <option value="Quotation">Quotation</option>
                             <option value="Invoice">Invoice</option>
+                            <option value="Tax Return">Tax Return</option>
                             <option value="Technical Report">Technical Report</option>
                             <option value="Tender Spec">Tender Spec</option>
                             <option value="Contract">Contract</option>

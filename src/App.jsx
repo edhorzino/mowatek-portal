@@ -8,6 +8,7 @@ import { MaintenancePage } from './components/MaintenancePage'
 import { DocumentsPage } from './components/DocumentsPage'
 import { TasksPage } from './components/TasksPage'
 import { CompanyUpdatesPage } from './components/CompanyUpdatesPage'
+import { InvoiceRegisterPage } from './components/InvoiceRegisterPage'
 import { BrandLogo } from './components/BrandLogo'
 import { supabase } from './lib/supabase'
 import "./App.css";
@@ -21,6 +22,7 @@ const navigationIconPaths = {
   maintenance: <path d="m14.7 6.3 3-3a5 5 0 0 1-6.3 6.3L5 16a2.1 2.1 0 0 0 3 3l6.4-6.4a5 5 0 0 1 6.3-6.3l-3 3" />,
   employees: <><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2.5" /><path d="M3.5 20a5.5 5.5 0 0 1 11 0M14 20a4 4 0 0 1 6.5-3.1" /></>,
   updates: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></>,
+  invoices: <><path d="M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" /><path d="M8 8h8M8 12h8M8 16h4" /><path d="m16 17 1.5 1.5L21 15" /></>,
 }
 
 function NavigationIcon({ name }) {
@@ -130,6 +132,7 @@ function AppContent() {
   const [employees, setEmployees] = useState([])
   const [loadingEmployees, setLoadingEmployees] = useState(true)
   const [canSendCompanyUpdates, setCanSendCompanyUpdates] = useState(false)
+  const [isInvoiceOfficer, setIsInvoiceOfficer] = useState(false)
 
   const isAdmin = profile?.role === 'admin'
 
@@ -168,6 +171,15 @@ function AppContent() {
     }
 
     fetchEmployees()
+  }, [user])
+
+  useEffect(() => {
+    async function checkInvoiceOfficer() {
+      if (!user) return setIsInvoiceOfficer(false)
+      const { data, error } = await supabase.from('invoice_officers').select('user_id').eq('user_id', user.id).maybeSingle()
+      setIsInvoiceOfficer(Boolean(data) && !error)
+    }
+    void checkInvoiceOfficer()
   }, [user])
 
   useEffect(() => {
@@ -307,13 +319,15 @@ function AppContent() {
           />
         )
       case 'equipment':
-        return <EquipmentPage isAdmin={isAdmin} />
+        return <EquipmentPage isAdmin={isAdmin} canCashInvoices={isAdmin || isInvoiceOfficer} />
       case 'maintenance':
         return <MaintenancePage user={user} />
       case 'documents':
         return <DocumentsPage />
       case 'company-updates':
         return canSendCompanyUpdates ? <CompanyUpdatesPage /> : <DashboardHome user={user} employees={employees} loadingEmployees={loadingEmployees} isAdmin={isAdmin} />
+      case 'invoice-register':
+        return (isAdmin || isInvoiceOfficer) ? <InvoiceRegisterPage /> : <DashboardHome user={user} employees={employees} loadingEmployees={loadingEmployees} isAdmin={isAdmin} />
       default:
         return <DashboardHome user={user} employees={employees} loadingEmployees={loadingEmployees} isAdmin={isAdmin} />
     }
@@ -360,6 +374,14 @@ function AppContent() {
               <NavigationIcon name="dashboard" />
               Dashboard
             </button>
+
+            {(isAdmin || isInvoiceOfficer) && <button
+              className={`nav-item ${activePage === 'invoice-register' ? 'active' : ''}`}
+              onClick={() => handleNavClick('invoice-register')}
+            >
+              <NavigationIcon name="invoices" />
+              Invoice Register
+            </button>}
 
             <button
               className={`nav-item ${activePage === 'profile' ? 'active' : ''}`}

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 
-export function EquipmentTable({ equipmentList = [], loading, isAdmin = false, onUpdate, onDelete, onSelectAsset, onCompleteMaintenance }) {
+export function EquipmentTable({ equipmentList = [], loading, isAdmin = false, canCashInvoices = false, onUpdate, onDelete, onSelectAsset, onCompleteMaintenance, onCashInvoice }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [clientFilter, setClientFilter] = useState('ALL')
@@ -67,7 +67,7 @@ export function EquipmentTable({ equipmentList = [], loading, isAdmin = false, o
 
   const handleMarkInvoiceCashed = async (item) => {
     try {
-      await onUpdate?.(item.id, { invoice_cashed: true })
+      await onCashInvoice?.(item)
     } catch (error) {
       alert(`Unable to mark invoice as cashed: ${error.message}`)
     }
@@ -323,7 +323,7 @@ export function EquipmentTable({ equipmentList = [], loading, isAdmin = false, o
                         {invoiceStatus === 'UPLOADED' ? 'INVOICE UPLOADED' : invoiceStatus === 'PENDING' ? 'INVOICE PENDING' : 'AWAITING MAINTENANCE'}
                       </span>
                       
-                      {isAdmin && invoiceStatus === 'UPLOADED' && (item.invoice_path || item.invoice_url) && (
+                      {canCashInvoices && invoiceStatus === 'UPLOADED' && (item.invoice_path || item.invoice_url) && (
                         <button
                           onClick={() => handleMarkInvoiceCashed(item)}
                           style={{ background: 'transparent', border: 'none', color: '#38bdf8', fontSize: '10px', cursor: 'pointer', textAlign: 'left', padding: 0, textDecoration: 'underline' }}

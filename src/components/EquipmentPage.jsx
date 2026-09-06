@@ -44,7 +44,7 @@ function PageHeader({ eyebrow, title, description, action }) {
   )
 }
 
-export function EquipmentPage({ isAdmin = false }) {
+export function EquipmentPage({ isAdmin = false, canCashInvoices = false }) {
   const { user } = useAuth()
   const [equipmentList, setEquipmentList] = useState([])
   const [loading, setLoading] = useState(true)
@@ -116,6 +116,12 @@ export function EquipmentPage({ isAdmin = false }) {
     await fetchEquipment()
   }
 
+  const handleCashInvoice = async (asset) => {
+    const { error } = await supabase.rpc('cash_equipment_invoice', { p_equipment_id: asset.id })
+    if (error) throw error
+    await fetchEquipment()
+  }
+
   const openAssetHistory = async (asset) => {
     const maintenanceReportLink = asset.maintenance_report_path
       ? await createMaintenanceFileUrl(asset.maintenance_report_path)
@@ -168,10 +174,12 @@ export function EquipmentPage({ isAdmin = false }) {
           <EquipmentTable
             equipmentList={equipmentList}
             isAdmin={isAdmin}
+            canCashInvoices={canCashInvoices}
             onUpdate={handleUpdate}
             onDelete={handleDelete}
             onSelectAsset={openAssetHistory}
             onCompleteMaintenance={handleCompleteMaintenance}
+            onCashInvoice={handleCashInvoice}
           />
         )}
       </section>

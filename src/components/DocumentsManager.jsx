@@ -46,6 +46,7 @@ export function DocumentsManager() {
   const [status, setStatus] = useState('APP') // DRF, REV, PAP, APP, ISS, etc.
   const [accessLevel, setAccessLevel] = useState('INT') // PUB, INT, DEP, RES, CON, STR
   const [file, setFile] = useState(null)
+  const isTaxReturn = category === 'TAX'
 
   useEffect(() => {
     fetchData()
@@ -96,7 +97,7 @@ export function DocumentsManager() {
 
   const handleUpload = async (e) => {
     e.preventDefault()
-    const targetClient = isInternal ? 'Internal' : selectedClient
+    const targetClient = (isInternal || isTaxReturn) ? 'Internal' : selectedClient
     if (!file || !title || (!targetClient && !isInternal)) {
       alert('Please fill in all required fields and select a file.')
       return
@@ -121,7 +122,7 @@ export function DocumentsManager() {
       const finalSerial = reservation.serial_number
       const fileExt = file.name.split('.').pop()
       const fileName = `${finalCode}_${version}_${Date.now()}.${fileExt}`
-      const folderSlug = isInternal ? 'internal_documents' : targetClient.toLowerCase().replace(/\s+/g, '_')
+      const folderSlug = isTaxReturn ? 'internal_documents/tax_returns' : (isInternal ? 'internal_documents' : targetClient.toLowerCase().replace(/\s+/g, '_'))
       const filePath = `documents/${user.id}/${folderSlug}/${fileName}`
 
       const { error: storageError } = await supabase.storage
@@ -307,7 +308,7 @@ export function DocumentsManager() {
                     <div style={{ fontSize: '36px', marginBottom: '12px' }}>📁</div>
                     <h3 style={{ fontSize: '16px', fontWeight: '700', margin: '0 0 4px 0' }}>Internal Documents</h3>
                     <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>
-                      {documents.filter(d => d.client_name === 'Internal').length} items • Company-wide records
+                      {documents.filter(d => d.client_name === 'Internal' && d.category !== 'TAX').length} general items • {documents.filter(d => d.category === 'TAX').length} tax returns
                     </p>
                   </div>
                   <div 
@@ -327,7 +328,12 @@ export function DocumentsManager() {
             <div>
               <button onClick={() => setSelectedFolderType(null)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', marginBottom: '16px', fontWeight: '600', fontSize: '13px', padding: 0 }}>← Back to Folders</button>
               <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '16px' }}>📁 Internal Documents Directory</h3>
-              <DocumentTable docs={getFolderFilteredDocs(documents.filter(d => d.client_name === 'Internal'))} loading={loading} user={user} onManageAccess={setAccessDocument} />
+              <div style={{ marginBottom: '18px', padding: '14px', border: '1px solid rgba(6,182,212,.35)', borderRadius: '8px', background: 'rgba(6,182,212,.06)' }}>
+                <strong style={{ color: '#67e8f9' }}>📁 Tax Returns</strong><span style={{ color: '#94a3b8', fontSize: '12px', marginLeft: 8 }}>{documents.filter(d => d.category === 'TAX').length} documents</span>
+                <DocumentTable docs={getFolderFilteredDocs(documents.filter(d => d.category === 'TAX'))} loading={loading} user={user} onManageAccess={setAccessDocument} />
+              </div>
+              <h4 style={{ color: '#fff' }}>Other internal documents</h4>
+              <DocumentTable docs={getFolderFilteredDocs(documents.filter(d => d.client_name === 'Internal' && d.category !== 'TAX'))} loading={loading} user={user} onManageAccess={setAccessDocument} />
             </div>
           ) : (
             <div>
@@ -415,12 +421,12 @@ export function DocumentsManager() {
               <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Destination Classification</label>
               <div style={{ display: 'flex', gap: '16px', marginBottom: '10px' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px' }}>
-                  <input type="checkbox" checked={isInternal} onChange={(e) => setIsInternal(e.target.checked)} />
-                  Save to Internal Documents Folder
+                  <input type="checkbox" checked={isInternal || isTaxReturn} disabled={isTaxReturn} onChange={(e) => setIsInternal(e.target.checked)} />
+                  {isTaxReturn ? 'Tax returns are always filed in Internal Documents → Tax Returns' : 'Save to Internal Documents Folder'}
                 </label>
               </div>
 
-              {!isInternal && (
+              {!isInternal && !isTaxReturn && (
                 <div>
                   {!isAddingNewClient ? (
                     <div style={{ display: 'flex', gap: '8px' }}>
@@ -476,7 +482,7 @@ export function DocumentsManager() {
                 <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Document Type Code</label>
                 <select 
                   value={category} 
-                  onChange={(e) => setCategory(e.target.value)}
+                  onChange={(e) => { const nextCategory = e.target.value; setCategory(nextCategory); if (nextCategory === 'TAX') { setIsInternal(true); setSelectedClient('') } }}
                   style={{ width: '100%', padding: '12px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', fontSize: '14px', outline: 'none' }}
                 >
                   <option value="RFQ">RFQ - Request for Quotation</option>
@@ -495,6 +501,7 @@ export function DocumentsManager() {
                   <option value="CON">CON - Contract</option>
                   <option value="HSE">HSE - Health, Safety & Env.</option>
                   <option value="QA">QA - Quality Assurance</option>
+                  <option value="TAX">TAX - Tax Return</option>
                 </select>
               </div>
 
